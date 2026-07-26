@@ -1,0 +1,426 @@
+/* Invoice print — Archetype Infratech (fits one A4) */
+
+.invoice-wrap {
+  min-height: 100vh;
+  background: #1a1a1a;
+  padding: 1rem;
+}
+
+.invoice-page {
+  width: 210mm;
+  max-width: 100%;
+  min-height: auto;
+  margin: 0 auto;
+  background: #fffdf8;
+  color: #14241a;
+  padding: 0;
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.inv-header {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  min-height: 78px;
+  background:
+    linear-gradient(115deg, #f3ead2 0%, #f3ead2 52%, #0b3d2e 52.2%, #062820 100%);
+}
+
+.inv-header__left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+}
+
+.inv-kicker {
+  margin: 0 0 0.1rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6b5a2e;
+  font-weight: 700;
+}
+
+.inv-title {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 2.35rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #0b1f14;
+  line-height: 1;
+}
+
+.inv-header__right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  color: #f7f3e8;
+}
+
+.inv-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+  border: 1px solid rgba(232, 212, 139, 0.35);
+}
+
+.inv-brand-text {
+  min-width: 0;
+}
+
+.inv-company {
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  color: #f7f3e8;
+}
+
+.inv-designer {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  color: #e8d48b;
+  font-size: 0.95rem;
+  margin-top: 0;
+}
+
+.inv-tagline {
+  margin-top: 0.1rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.03em;
+  color: rgba(247, 243, 232, 0.7);
+}
+
+.inv-gold-rule {
+  height: 3px;
+  background: linear-gradient(90deg, #c9a227, #e8d48b 40%, #0b3d2e 40%, #0b3d2e);
+}
+
+.inv-meta {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem 0.5rem;
+  align-items: start;
+}
+
+.inv-label {
+  margin: 0 0 0.12rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #8a7340;
+}
+
+.inv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #0b3d2e;
+  color: #f7f3e8;
+  font-size: 0.7rem;
+}
+
+.inv-chip strong {
+  color: #e8d48b;
+}
+
+.inv-client-name {
+  margin: 0 0 0.2rem;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0b1f14;
+}
+
+.inv-muted {
+  display: inline-block;
+  min-width: 3.8rem;
+  color: #7a6a45;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.inv-billto p,
+.inv-bank p {
+  margin: 0.08rem 0;
+}
+
+.inv-bank {
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  background: linear-gradient(180deg, #f7f1e2, #efe6d0);
+  border: 1px solid rgba(201, 162, 39, 0.35);
+  border-radius: 8px;
+  font-size: 0.92em;
+}
+
+.inv-date {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0b3d2e;
+}
+
+.inv-section {
+  padding: 0 1rem 0.45rem;
+}
+
+.inv-banner {
+  background: linear-gradient(90deg, #dcecc8, #c5dfb0);
+  color: #0b3d2e;
+  padding: 0.35rem 0.55rem;
+  font-weight: 800;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 6px 6px 0 0;
+}
+
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inv-table th {
+  background: #0b3d2e;
+  color: #f7f3e8;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 700;
+}
+
+.inv-table td {
+  border: 1px solid #d9d0bc;
+  padding: 0.35rem 0.3rem;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+}
+
+.inv-particulars {
+  text-align: left !important;
+}
+
+.inv-particulars strong {
+  display: block;
+  color: #0b1f14;
+}
+
+.inv-particulars span {
+  display: block;
+  color: #6b6354;
+  font-size: 0.85em;
+  margin-top: 0.05rem;
+}
+
+.inv-subtotal {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  background: #0b3d2e;
+  color: #fff;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+  border-radius: 0 0 6px 6px;
+  font-size: 0.85rem;
+}
+
+.inv-grand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(90deg, #c9a227, #e0c15a);
+  color: #0b1f14;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.inv-grand strong {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+
+.due-row td {
+  background: #eef6e4 !important;
+  font-weight: 800;
+  color: #0b3d2e;
+  text-align: right;
+}
+
+.due-row td:last-child {
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.inv-footer {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 0.55rem;
+  padding: 0.25rem 1rem 0.45rem;
+}
+
+.inv-terms {
+  background: #f3ead2;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 162, 39, 0.28);
+}
+
+.inv-terms strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #0b3d2e;
+  font-size: 0.8rem;
+}
+
+.inv-terms ol {
+  margin: 0.2rem 0 0.4rem;
+  padding-left: 1rem;
+  font-size: 0.85em;
+}
+
+.inv-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.65rem;
+  font-size: 0.68rem;
+  color: #5c5344;
+}
+
+.inv-sign {
+  background: #0b3d2e;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  text-align: right;
+  color: #f7f3e8;
+}
+
+.inv-sign .inv-label {
+  color: #e8d48b;
+}
+
+.inv-sign-line {
+  margin: 0.75rem 0 0.25rem auto;
+  width: 65%;
+  border-bottom: 1px solid rgba(232, 212, 139, 0.45);
+}
+
+.inv-sign-name {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  color: #f7f3e8;
+}
+
+.inv-sign .phones {
+  margin-top: 0.3rem;
+  font-weight: 800;
+  color: #e8d48b;
+  font-size: 0.78rem;
+}
+
+.inv-address {
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  background: #0b3d2e;
+  color: rgba(247, 243, 232, 0.88);
+  font-size: 0.68rem;
+  text-align: center;
+  border-top: 2px solid #c9a227;
+}
+
+@media (max-width: 860px) {
+  .invoice-wrap {
+    padding: 0.75rem 0.5rem calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  .invoice-page {
+    width: 100%;
+  }
+
+  .inv-header {
+    grid-template-columns: 1fr;
+  }
+
+  .inv-header__right {
+    background: #0b3d2e;
+  }
+
+  .inv-title {
+    font-size: 2rem;
+  }
+
+  .inv-meta,
+  .inv-footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .invoice-wrap {
+    background: white !important;
+    padding: 0 !important;
+    min-height: auto !important;
+  }
+
+  .invoice-page {
+    box-shadow: none !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: auto !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .inv-header,
+  .inv-meta,
+  .inv-section,
+  .inv-footer,
+  .inv-table,
+  .inv-grand,
+  .inv-address {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

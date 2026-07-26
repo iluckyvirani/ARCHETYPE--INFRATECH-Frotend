@@ -1,0 +1,689 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  additionalWorkAmount,
+  additionalWorksSum,
+  buildInstallmentDueDates,
+  buildSchedulePreview,
+  calcTotals,
+  formatDisplayDate,
+  formatINR,
+  getInstallmentCount,
+  stagesSum,
+  todayISO,
+} from "../lib/calc";
+import { createInvoiceForClient, getClientGroup } from "../lib/store";
+import type {
+  AdditionalWork,
+  FeeMode,
+  InstallmentMode,
+  PaymentPlan,
+  StageInput,
+} from "../lib/types";
+
+const emptyStage = (): StageInput => ({
+  name: "",
+  amount: 0,
+  dueDate: todayISO(),
+});
+
+const emptyWork = (): AdditionalWork => ({
+  name: "",
+  qty: 0,
+  rate: 0,
+});
+
+export function CreateInvoicePage() {
+  const { id: groupId } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [projectName, setProjectName] = useState("");
+  const [feeMode, setFeeMode] = useState<FeeMode>("percentage");
+  const [areaSqft, setAreaSqft] = useState("");
+  const [costPerSqft, setCostPerSqft] = useState("");
+  const [feePercent, setFeePercent] = useState("7");
+  const [fixedAmount, setFixedAmount] = useState("");
+  const [additionalWorks, setAdditionalWorks] = useState<AdditionalWork[]>([]);
+  const [advanceAmount, setAdvanceAmount] = useState("0");
+  const [advanceDate, setAdvanceDate] = useState(todayISO());
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>("one_time");
+  const [installmentMode, setInstallmentMode] =
+    useState<InstallmentMode>("by_months");
+  const [installmentMonths, setInstallmentMonths] = useState("6");
+  const [installmentCount, setInstallmentCount] = useState("3");
+  const [installmentFirstDue, setInstallmentFirstDue] = useState(todayISO());
+  const [installmentDueDates, setInstallmentDueDates] = useState<string[]>([]);
+  const [oneTimeDueDate, setOneTimeDueDate] = useState(todayISO());
+  const [stages, setStages] = useState<StageInput[]>([emptyStage()]);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!groupId) return;
+    getClientGroup(groupId).then((data) => {
+      if (!data || !data.invoices.length) {
+        setError("Client not found");
+        setLoading(false);
+        return;
+      }
+      const last = data.invoices[0];
+      setName(last.name);
+      setLocation(last.location);
+      setProjectName(last.projectName);
+      setFeeMode(last.feeMode);
+      setAreaSqft(last.areaSqft != null ? String(last.areaSqft) : "");
+      setCostPerSqft(last.costPerSqft != null ? String(last.costPerSqft) : "");
+      setFeePercent(last.feePercent != null ? String(last.feePercent) : "7");
+      setFixedAmount(last.fixedAmount != null ? String(last.fixedAmount) : "");
+      setAdditionalWorks(
+        (last.additionalWorks || []).map((w) => ({ ...w }))
+      );
+      setAdvanceAmount("0");
+      setAdvanceDate(todayISO());
+      setPaymentPlan(
+        last.paymentPlan === "none" ? "one_time" : last.paymentPlan
+      );
+      setInstallmentMode(last.installmentMode || "by_months");
+      setInstallmentMonths(
+        last.installmentMonths != null ? String(last.installmentMonths) : "6"
+      );
+      setInstallmentCount(
+        last.installmentCount != null ? String(last.installmentCount) : "3"
+      );
+      setInstallmentFirstDue(todayISO());
+      setOneTimeDueDate(todayISO());
+      setLoading(false);
+    });
+  }, [groupId]);
+
+  const totals = useMemo(
+    () =>
+      calcTotals({
+        feeMode,
+        areaSqft: Number(areaSqft) || 0,
+        costPerSqft: Number(costPerSqft) || 0,
+        feePercent: Number(feePercent) || 0,
+        fixedAmount: Number(fixedAmount) || 0,
+        advanceAmount: Number(advanceAmount) || 0,
+        additionalWorks,
+      }),
+    [
+      feeMode,
+      areaSqft,
+      costPerSqft,
+      feePercent,
+      fixedAmount,
+      advanceAmount,
+      additionalWorks,
+    ]
+  );
+
+  const effectivePlan: PaymentPlan =
+    totals.balance <= 0 ? "none" : paymentPlan;
+
+  const emiCount = useMemo(
+    () =>
+      getInstallmentCount({
+        installmentMode,
+        installmentMonths: Number(installmentMonths) || 0,
+        installmentCount: Number(installmentCount) || 0,
+      }),
+    [installmentMode, installmentMonths, installmentCount]
+  );
+
+  useEffect(() => {
+    if (paymentPlan !== "installment") return;
+    setInstallmentDueDates(
+      buildInstallmentDueDates(
+        installmentFirstDue,
+        emiCount,
+        installmentMode,
+        Number(installmentMonths) || 0
+      )
+    );
+  }, [
+    paymentPlan,
+    emiCount,
+    installmentMode,
+    installmentMonths,
+    installmentFirstDue,
+  ]);
+
+  const preview = useMemo(
+    () =>
+      buildSchedulePreview({
+        clientId: groupId || "preview",
+        balance: totals.balance,
+        advanceAmount: Number(advanceAmount) || 0,
+        advanceDate: Number(advanceAmount) > 0 ? advanceDate : null,
+        paymentPlan: effectivePlan,
+        installmentMode,
+        installmentMonths: Number(installmentMonths) || 0,
+        installmentCount: Number(installmentCount) || 0,
+        installmentDueDates,
+        oneTimeDueDate,
+        stages,
+      }),
+    [
+      groupId,
+      totals.balance,
+      advanceAmount,
+      advanceDate,
+      effectivePlan,
+      installmentMode,
+      installmentMonths,
+      installmentCount,
+      installmentDueDates,
+      oneTimeDueDate,
+      stages,
+    ]
+  );
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!groupId) return;
+    setError(null);
+
+    if (!location.trim() || !projectName.trim()) {
+      setError("Location and project name are required.");
+      return;
+    }
+
+    if (feeMode === "percentage") {
+      if (
+        !(Number(areaSqft) > 0 && Number(costPerSqft) > 0 && Number(feePercent) > 0)
+      ) {
+        setError("Enter area, cost per sqft and percentage.");
+        return;
+      }
+    }
+    if (feeMode === "fixed" && !(Number(fixedAmount) > 0)) {
+      setError("Enter a fixed amount.");
+      return;
+    }
+    if (feeMode === "area_sqft") {
+      if (!(Number(areaSqft) > 0 && Number(costPerSqft) > 0)) {
+        setError("Enter area and cost per sqft.");
+        return;
+      }
+    }
+
+    const advance = Number(advanceAmount) || 0;
+    if (advance > totals.totalBill) {
+      setError("Advance cannot exceed total bill.");
+      return;
+    }
+    if (advance > 0 && !advanceDate) {
+      setError("Select advance date.");
+      return;
+    }
+    if (totals.balance > 0 && paymentPlan === "installment") {
+      if (!installmentFirstDue) {
+        setError("Select first installment due date.");
+        return;
+      }
+    }
+    if (totals.balance > 0 && paymentPlan === "stage") {
+      const sum = stagesSum(stages);
+      if (Math.abs(sum - totals.balance) > 0.01) {
+        setError(
+          `Stage amounts must equal balance ₹${formatINR(totals.balance)}.`
+        );
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      await createInvoiceForClient(groupId, {
+        location,
+        projectName,
+        feeMode,
+        areaSqft: Number(areaSqft) || null,
+        costPerSqft: Number(costPerSqft) || null,
+        feePercent: Number(feePercent) || null,
+        fixedAmount: Number(fixedAmount) || null,
+        additionalWorks: additionalWorks.filter(
+          (w) => w.name.trim() && (Number(w.qty) > 0 || Number(w.rate) > 0)
+        ),
+        advanceAmount: advance,
+        advanceDate: advance > 0 ? advanceDate : null,
+        paymentPlan: effectivePlan,
+        installmentMode:
+          effectivePlan === "installment" ? installmentMode : null,
+        installmentMonths:
+          effectivePlan === "installment" ? Number(installmentMonths) : null,
+        installmentCount:
+          effectivePlan === "installment" &&
+          installmentMode === "count_over_months"
+            ? Number(installmentCount)
+            : null,
+        installmentDueDates:
+          effectivePlan === "installment"
+            ? installmentDueDates.slice(0, emiCount)
+            : null,
+        oneTimeDueDate: effectivePlan === "one_time" ? oneTimeDueDate : null,
+        stages: effectivePlan === "stage" ? stages : [],
+      });
+      navigate(`/clients/${groupId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save invoice");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="empty" style={{ color: "#e8d48b" }}>Loading…</p>;
+  }
+
+  return (
+    <>
+      <header className="page-header">
+        <div>
+          <h1>New invoice</h1>
+          <p>Pre-filled from last invoice — client name is locked</p>
+        </div>
+        <Link to={`/clients/${groupId}`} className="btn btn-ghost">
+          Cancel
+        </Link>
+      </header>
+
+      <form className="panel" onSubmit={onSubmit}>
+        <div className="form-grid two">
+          <label className="field">
+            Client name (locked)
+            <input value={name} readOnly disabled />
+          </label>
+          <label className="field">
+            Location
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              required
+            />
+          </label>
+          <label className="field" style={{ gridColumn: "1 / -1" }}>
+            Project name
+            <input
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+
+        <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+          Fee & amount
+        </h2>
+        <div className="segmented">
+          {(
+            [
+              ["percentage", "Percentage"],
+              ["fixed", "Fixed amount"],
+              ["area_sqft", "Area sqft"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={feeMode === value ? "active" : ""}
+              onClick={() => setFeeMode(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="form-grid two" style={{ marginTop: "1rem" }}>
+          {(feeMode === "percentage" || feeMode === "area_sqft") && (
+            <>
+              <label className="field">
+                Area (sqft)
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={areaSqft}
+                  onChange={(e) => setAreaSqft(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                Cost per sqft (₹)
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={costPerSqft}
+                  onChange={(e) => setCostPerSqft(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+          {feeMode === "percentage" && (
+            <label className="field">
+              Fee percentage (%)
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={feePercent}
+                onChange={(e) => setFeePercent(e.target.value)}
+              />
+            </label>
+          )}
+          {feeMode === "fixed" && (
+            <label className="field">
+              Fixed amount (₹)
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={fixedAmount}
+                onChange={(e) => setFixedAmount(e.target.value)}
+              />
+            </label>
+          )}
+        </div>
+
+        <div className="summary-box" style={{ marginTop: "1rem" }}>
+          {feeMode === "percentage" && (
+            <div>
+              Project cost: <strong>₹{formatINR(totals.projectCost)}</strong>
+            </div>
+          )}
+          <div>
+            Fee: <strong>₹{formatINR(totals.feeAmount)}</strong>
+          </div>
+          {totals.additionalTotal > 0 && (
+            <div>
+              Additional: <strong>₹{formatINR(totals.additionalTotal)}</strong>
+            </div>
+          )}
+          <div>
+            Billable total: <strong>₹{formatINR(totals.totalBill)}</strong>
+            <span style={{ opacity: 0.8 }}>
+              {feeMode === "percentage"
+                ? " (project cost + fee + additional)"
+                : " (fee + additional)"}
+            </span>
+          </div>
+        </div>
+
+        <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+          Additional work
+        </h2>
+        {additionalWorks.map((work, idx) => (
+          <div key={idx} className="form-grid two" style={{ marginBottom: "0.75rem" }}>
+            <label className="field" style={{ gridColumn: "1 / -1" }}>
+              Name
+              <input
+                value={work.name}
+                onChange={(e) => {
+                  const next = [...additionalWorks];
+                  next[idx] = { ...work, name: e.target.value };
+                  setAdditionalWorks(next);
+                }}
+              />
+            </label>
+            <label className="field">
+              Qty
+              <input
+                type="number"
+                value={work.qty || ""}
+                onChange={(e) => {
+                  const next = [...additionalWorks];
+                  next[idx] = { ...work, qty: Number(e.target.value) || 0 };
+                  setAdditionalWorks(next);
+                }}
+              />
+            </label>
+            <label className="field">
+              Per qty (₹)
+              <input
+                type="number"
+                value={work.rate || ""}
+                onChange={(e) => {
+                  const next = [...additionalWorks];
+                  next[idx] = { ...work, rate: Number(e.target.value) || 0 };
+                  setAdditionalWorks(next);
+                }}
+              />
+            </label>
+            <div className="meta">
+              = ₹{formatINR(additionalWorkAmount(work))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() =>
+                setAdditionalWorks(additionalWorks.filter((_, i) => i !== idx))
+              }
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ color: "#0b1f14", borderColor: "#0b1f14" }}
+          onClick={() => setAdditionalWorks([...additionalWorks, emptyWork()])}
+        >
+          Add additional work
+        </button>
+        {additionalWorks.length > 0 && (
+          <p className="meta">
+            Additional total: ₹{formatINR(additionalWorksSum(additionalWorks))}
+          </p>
+        )}
+
+        <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+          Advance
+        </h2>
+        <div className="form-grid two">
+          <label className="field">
+            Advance amount (₹)
+            <input
+              type="number"
+              min="0"
+              value={advanceAmount}
+              onChange={(e) => setAdvanceAmount(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            Advance date
+            <input
+              type="date"
+              value={advanceDate}
+              min={todayISO()}
+              onChange={(e) => setAdvanceDate(e.target.value)}
+              onPaste={(e) => e.preventDefault()}
+              disabled={!(Number(advanceAmount) > 0)}
+            />
+            <span className="meta">Pick today or a future date (calendar only)</span>
+          </label>
+        </div>
+        <p>
+          Remaining balance: <strong>₹{formatINR(totals.balance)}</strong>
+        </p>
+
+        {totals.balance > 0 && (
+          <>
+            <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+              Payment type
+            </h2>
+            <div className="segmented">
+              {(
+                [
+                  ["one_time", "One time"],
+                  ["installment", "Installment"],
+                  ["stage", "Stage"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={paymentPlan === value ? "active" : ""}
+                  onClick={() => setPaymentPlan(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {paymentPlan === "one_time" && (
+              <label className="field" style={{ marginTop: "1rem" }}>
+                Due date
+                <input
+                  type="date"
+                  value={oneTimeDueDate}
+                  min={todayISO()}
+                  onPaste={(e) => e.preventDefault()}
+                  onChange={(e) => setOneTimeDueDate(e.target.value)}
+                />
+              </label>
+            )}
+            {paymentPlan === "installment" && (
+              <div className="form-grid two" style={{ marginTop: "1rem" }}>
+                <label className="field">
+                  Style
+                  <select
+                    value={installmentMode}
+                    onChange={(e) =>
+                      setInstallmentMode(e.target.value as InstallmentMode)
+                    }
+                  >
+                    <option value="by_months">Equal by months</option>
+                    <option value="count_over_months">
+                      N installments over M months
+                    </option>
+                  </select>
+                </label>
+                <label className="field">
+                  Months
+                  <input
+                    type="number"
+                    min="1"
+                    value={installmentMonths}
+                    onChange={(e) => setInstallmentMonths(e.target.value)}
+                  />
+                </label>
+                {installmentMode === "count_over_months" && (
+                  <label className="field">
+                    Installments
+                    <input
+                      type="number"
+                      min="1"
+                      value={installmentCount}
+                      onChange={(e) => setInstallmentCount(e.target.value)}
+                    />
+                  </label>
+                )}
+                <label className="field">
+                  First installment due date
+                  <input
+                    type="date"
+                    value={installmentFirstDue}
+                    min={todayISO()}
+                    onPaste={(e) => e.preventDefault()}
+                    onChange={(e) => setInstallmentFirstDue(e.target.value)}
+                  />
+                  <span className="meta">
+                    All {emiCount} EMIs are set from this date (monthly spaced)
+                  </span>
+                </label>
+              </div>
+            )}
+            {paymentPlan === "stage" && (
+              <div style={{ marginTop: "1rem" }}>
+                {stages.map((stage, idx) => (
+                  <div key={idx} className="form-grid two">
+                    <label className="field">
+                      Stage name
+                      <input
+                        value={stage.name}
+                        onChange={(e) => {
+                          const next = [...stages];
+                          next[idx] = { ...stage, name: e.target.value };
+                          setStages(next);
+                        }}
+                      />
+                    </label>
+                    <label className="field">
+                      Amount
+                      <input
+                        type="number"
+                        value={stage.amount || ""}
+                        onChange={(e) => {
+                          const next = [...stages];
+                          next[idx] = {
+                            ...stage,
+                            amount: Number(e.target.value) || 0,
+                          };
+                          setStages(next);
+                        }}
+                      />
+                    </label>
+                    <label className="field">
+                      Due date
+                      <input
+                        type="date"
+                        value={stage.dueDate}
+                        min={todayISO()}
+                        onPaste={(e) => e.preventDefault()}
+                        onChange={(e) => {
+                          const next = [...stages];
+                          next[idx] = { ...stage, dueDate: e.target.value };
+                          setStages(next);
+                        }}
+                      />
+                    </label>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ color: "#0b1f14", borderColor: "#0b1f14" }}
+                  onClick={() => setStages([...stages, emptyStage()])}
+                >
+                  Add stage
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+          Schedule preview
+        </h2>
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Amount</th>
+              <th>Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            {preview.map((row, i) => (
+              <tr key={i}>
+                <td data-label="Label">{row.label}</td>
+                <td data-label="Amount">₹{formatINR(row.amount)}</td>
+                <td data-label="Due">{formatDisplayDate(row.dueDate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {error && <p className="error-text">{error}</p>}
+        <div className="row-actions" style={{ marginTop: "1.25rem" }}>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? "Saving…" : "Save invoice"}
+          </button>
+        </div>
+      </form>
+    </>
+  );
+}

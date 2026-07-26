@@ -1,0 +1,236 @@
+/* Printable A4 slips — Archetype Infratech */
+
+.print-shell {
+  min-height: 100vh;
+  background: #e8e4dc;
+  padding: 24px 16px 48px;
+}
+
+.print-toolbar {
+  max-width: 210mm;
+  margin: 0 auto 16px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #0b1f14;
+  border-radius: 14px;
+  border: 1px solid rgba(201, 162, 39, 0.28);
+}
+
+.print-toolbar__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.print-toolbar__title strong {
+  color: #e8d48b;
+  font-size: 0.95rem;
+}
+
+.print-toolbar__title span {
+  color: rgba(247, 243, 232, 0.72);
+  font-size: 0.8rem;
+}
+
+.print-toolbar__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.print-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 42px;
+  padding: 0.55rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.print-btn--ghost {
+  background: transparent;
+  color: #e8d48b;
+  border-color: rgba(201, 162, 39, 0.45);
+}
+
+.print-btn--ghost:hover {
+  background: rgba(201, 162, 39, 0.12);
+}
+
+.print-btn--primary {
+  background: linear-gradient(135deg, #c9a227, #a8841a);
+  color: #0b1f14;
+  border-color: #c9a227;
+}
+
+.print-btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+.print-hint {
+  max-width: 210mm;
+  margin: 0 auto 12px;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.print-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 16px;
+  background: #f7f3ea;
+  color: #1a1a1a;
+  box-shadow: 0 12px 40px rgba(6, 40, 32, 0.18);
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-page * {
+  box-sizing: border-box;
+}
+
+.pdn-sheet-wrap {
+  background: transparent;
+  box-shadow: none;
+  min-height: auto;
+}
+
+.pdn-sheet {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  margin: 0 auto;
+  background: #f7f3ea;
+  box-shadow: 0 12px 40px rgba(6, 40, 32, 0.18);
+  overflow: hidden;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.pdn-sheet__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+  pointer-events: none;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.pdn-field {
+  z-index: 2;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-break {
+  break-before: page;
+  page-break-before: always;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .print-shell {
+    background: transparent !important;
+    padding: 0 !important;
+    min-height: auto;
+  }
+
+  .print-toolbar,
+  .print-hint,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    box-shadow: none;
+    page-break-after: always;
+  }
+
+  .pdn-sheet {
+    box-shadow: none !important;
+    width: 210mm;
+    height: 297mm;
+  }
+
+  .print-break {
+    break-before: page;
+    page-break-before: always;
+  }
+}
+
+@media (max-width: 860px) {
+  .print-shell {
+    padding: 12px 8px 32px;
+  }
+
+  .print-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .print-toolbar__actions {
+    width: 100%;
+  }
+
+  .print-btn {
+    flex: 1 1 auto;
+    border-radius: 10px;
+    min-height: 44px;
+  }
+
+  .print-btn--primary {
+    flex: 1 1 100%;
+  }
+
+  .print-page,
+  .pdn-sheet {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    aspect-ratio: 210 / 297;
+    height: auto;
+  }
+
+  .pdn-sheet {
+    height: auto;
+    aspect-ratio: 210 / 297;
+  }
+}
