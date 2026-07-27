@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CollectPaymentModal } from "../components/CollectPaymentModal";
+import { AlertsSkeleton } from "../components/Skeleton";
 import { formatDisplayDate, formatINR, todayISO } from "../lib/calc";
 import {
   listNotifications,
@@ -132,7 +133,7 @@ export function NotificationsPage() {
       </header>
 
       <section className="panel">
-        {loading && <p className="empty">Loading alerts…</p>}
+        {loading && <AlertsSkeleton count={3} />}
         {!loading && dueAlerts.length === 0 && (
           <div className="empty">
             No due payments. Alerts appear when an EMI or advance due date is
@@ -161,6 +162,7 @@ export function NotificationsPage() {
         clientName={collect?.clientName || ""}
         label={collect?.scheduleLabel || collect?.title || "Payment"}
         amount={collect?.amount || 0}
+        dueDate={collect?.dueDate}
         onClose={() => setCollect(null)}
         onConfirm={onCollect}
       />

@@ -12,13 +12,21 @@ export function StartPage() {
   return (
     <div className="start-page">
       <div className="start-card">
-        <img src="/logo.png" alt={BRAND.name} className="start-logo" />
-        <h1 className="start-title">{BRAND.name}</h1>
-        <p className="start-desc">{BRAND.tagline}</p>
-        <p className="start-sub">
+        <div className="start-logo-wrap">
+          <img
+            src="/logo.png"
+            alt={BRAND.name}
+            className="start-logo start-logo--enter"
+          />
+        </div>
+        <p className="start-sub start-fade">
           Create clients, track fees, advances, installments and print invoices.
         </p>
-        <button type="button" className="btn btn-primary start-btn" onClick={onStart}>
+        <button
+          type="button"
+          className="btn btn-primary start-btn start-fade start-fade--late"
+          onClick={onStart}
+        >
           Get Started
         </button>
       </div>

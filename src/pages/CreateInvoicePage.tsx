@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { FormSkeleton } from "../components/Skeleton";
 import {
   additionalWorkAmount,
   additionalWorksSum,
   buildInstallmentDueDates,
   buildSchedulePreview,
   calcTotals,
+  floorsAreaSum,
+  floorsProjectCost,
   formatDisplayDate,
   formatINR,
   getInstallmentCount,
@@ -15,6 +18,7 @@ import {
 import { createInvoiceForClient, getClientGroup } from "../lib/store";
 import type {
   AdditionalWork,
+  AreaMode,
   FeeMode,
   InstallmentMode,
   PaymentPlan,
@@ -33,6 +37,14 @@ const emptyWork = (): AdditionalWork => ({
   rate: 0,
 });
 
+type FloorRow = { label: string; area: string; cost: string };
+
+const emptyFloor = (n: number): FloorRow => ({
+  label: `Floor ${n}`,
+  area: "",
+  cost: "",
+});
+
 export function CreateInvoicePage() {
   const { id: groupId } = useParams();
   const navigate = useNavigate();
@@ -41,7 +53,9 @@ export function CreateInvoicePage() {
   const [location, setLocation] = useState("");
   const [projectName, setProjectName] = useState("");
   const [feeMode, setFeeMode] = useState<FeeMode>("percentage");
+  const [areaMode, setAreaMode] = useState<AreaMode>("total");
   const [areaSqft, setAreaSqft] = useState("");
+  const [floors, setFloors] = useState<FloorRow[]>([emptyFloor(1)]);
   const [costPerSqft, setCostPerSqft] = useState("");
   const [feePercent, setFeePercent] = useState("7");
   const [fixedAmount, setFixedAmount] = useState("");
@@ -73,6 +87,8 @@ export function CreateInvoicePage() {
       setLocation(last.location);
       setProjectName(last.projectName);
       setFeeMode(last.feeMode);
+      setAreaMode("total");
+      setFloors([emptyFloor(1)]);
       setAreaSqft(last.areaSqft != null ? String(last.areaSqft) : "");
       setCostPerSqft(last.costPerSqft != null ? String(last.costPerSqft) : "");
       setFeePercent(last.feePercent != null ? String(last.feePercent) : "7");
@@ -98,12 +114,28 @@ export function CreateInvoicePage() {
     });
   }, [groupId]);
 
+  const floorInputs = floors.map((f) => ({
+    areaSqft: Number(f.area) || 0,
+    costPerSqft: Number(f.cost) || 0,
+  }));
+  const effectiveArea =
+    areaMode === "floors"
+      ? floorsAreaSum(floorInputs)
+      : Number(areaSqft) || 0;
+  const floorProjectCost = floorsProjectCost(floorInputs);
+  const effectiveRate =
+    areaMode === "floors"
+      ? effectiveArea > 0
+        ? floorProjectCost / effectiveArea
+        : 0
+      : Number(costPerSqft) || 0;
+
   const totals = useMemo(
     () =>
       calcTotals({
         feeMode,
-        areaSqft: Number(areaSqft) || 0,
-        costPerSqft: Number(costPerSqft) || 0,
+        areaSqft: effectiveArea,
+        costPerSqft: effectiveRate,
         feePercent: Number(feePercent) || 0,
         fixedAmount: Number(fixedAmount) || 0,
         advanceAmount: Number(advanceAmount) || 0,
@@ -111,8 +143,8 @@ export function CreateInvoicePage() {
       }),
     [
       feeMode,
-      areaSqft,
-      costPerSqft,
+      effectiveArea,
+      effectiveRate,
       feePercent,
       fixedAmount,
       advanceAmount,
@@ -192,8 +224,19 @@ export function CreateInvoicePage() {
     }
 
     if (feeMode === "percentage") {
-      if (
-        !(Number(areaSqft) > 0 && Number(costPerSqft) > 0 && Number(feePercent) > 0)
+      if (areaMode === "floors") {
+        const ok = floors.every(
+          (f) =>
+            f.label.trim() && Number(f.area) > 0 && Number(f.cost) > 0
+        );
+        if (!ok || !(Number(feePercent) > 0)) {
+          setError(
+            "Enter floor name, area, cost per sqft for each floor, and fee %."
+          );
+          return;
+        }
+      } else if (
+        !(effectiveArea > 0 && Number(costPerSqft) > 0 && Number(feePercent) > 0)
       ) {
         setError("Enter area, cost per sqft and percentage.");
         return;
@@ -204,7 +247,15 @@ export function CreateInvoicePage() {
       return;
     }
     if (feeMode === "area_sqft") {
-      if (!(Number(areaSqft) > 0 && Number(costPerSqft) > 0)) {
+      if (areaMode === "floors") {
+        const ok = floors.every(
+          (f) => f.label.trim() && Number(f.area) > 0 && Number(f.cost) > 0
+        );
+        if (!ok) {
+          setError("Enter floor name, area and cost per sqft for each floor.");
+          return;
+        }
+      } else if (!(effectiveArea > 0 && Number(costPerSqft) > 0)) {
         setError("Enter area and cost per sqft.");
         return;
       }
@@ -241,8 +292,8 @@ export function CreateInvoicePage() {
         location,
         projectName,
         feeMode,
-        areaSqft: Number(areaSqft) || null,
-        costPerSqft: Number(costPerSqft) || null,
+        areaSqft: effectiveArea || null,
+        costPerSqft: effectiveRate || null,
         feePercent: Number(feePercent) || null,
         fixedAmount: Number(fixedAmount) || null,
         additionalWorks: additionalWorks.filter(
@@ -276,7 +327,7 @@ export function CreateInvoicePage() {
   }
 
   if (loading) {
-    return <p className="empty" style={{ color: "#e8d48b" }}>Loading…</p>;
+    return <FormSkeleton />;
   }
 
   return (
@@ -340,26 +391,163 @@ export function CreateInvoicePage() {
         <div className="form-grid two" style={{ marginTop: "1rem" }}>
           {(feeMode === "percentage" || feeMode === "area_sqft") && (
             <>
-              <label className="field">
-                Area (sqft)
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={areaSqft}
-                  onChange={(e) => setAreaSqft(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                Cost per sqft (₹)
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={costPerSqft}
-                  onChange={(e) => setCostPerSqft(e.target.value)}
-                />
-              </label>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div className="segmented" role="tablist" aria-label="Area input">
+                  {(
+                    [
+                      ["total", "Total area"],
+                      ["floors", "Floor by area"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={areaMode === value ? "active" : ""}
+                      onClick={() => setAreaMode(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {areaMode === "total" ? (
+                <>
+                  <label className="field">
+                    Area (sqft)
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={areaSqft}
+                      onChange={(e) => setAreaSqft(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Cost per sqft (₹)
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={costPerSqft}
+                      onChange={(e) => setCostPerSqft(e.target.value)}
+                    />
+                  </label>
+                </>
+              ) : (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  {floors.map((floor, idx) => {
+                    const area = Number(floor.area) || 0;
+                    const rate = Number(floor.cost) || 0;
+                    const line = area * rate;
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          marginBottom: "0.85rem",
+                          paddingBottom: "0.85rem",
+                          borderBottom: "1px solid rgba(11, 31, 20, 0.08)",
+                        }}
+                      >
+                        <div className="form-grid two">
+                          <label className="field">
+                            Floor name
+                            <input
+                              type="text"
+                              placeholder={`Floor ${idx + 1}`}
+                              value={floor.label}
+                              onChange={(e) => {
+                                const next = [...floors];
+                                next[idx] = {
+                                  ...next[idx],
+                                  label: e.target.value,
+                                };
+                                setFloors(next);
+                              }}
+                            />
+                          </label>
+                          <label className="field">
+                            Area (sqft)
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="e.g. 450"
+                              value={floor.area}
+                              onChange={(e) => {
+                                const next = [...floors];
+                                next[idx] = {
+                                  ...next[idx],
+                                  area: e.target.value,
+                                };
+                                setFloors(next);
+                              }}
+                            />
+                          </label>
+                          <label className="field">
+                            Cost per sqft (₹)
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="e.g. 1200"
+                              value={floor.cost}
+                              onChange={(e) => {
+                                const next = [...floors];
+                                next[idx] = {
+                                  ...next[idx],
+                                  cost: e.target.value,
+                                };
+                                setFloors(next);
+                              }}
+                            />
+                          </label>
+                          <div
+                            className="meta"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              paddingBottom: "0.35rem",
+                            }}
+                          >
+                            {area > 0 && rate > 0
+                              ? `${formatINR(area)} × ₹${formatINR(rate)} = ₹${formatINR(line)}`
+                              : "Area × cost"}
+                            {floors.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                style={{ padding: "0.2rem 0.6rem" }}
+                                onClick={() =>
+                                  setFloors(floors.filter((_, i) => i !== idx))
+                                }
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() =>
+                      setFloors([...floors, emptyFloor(floors.length + 1)])
+                    }
+                  >
+                    + Add floor
+                  </button>
+                  <p className="meta" style={{ marginTop: "0.5rem" }}>
+                    Total area: <strong>{formatINR(effectiveArea)}</strong> sqft
+                    {" · "}
+                    Project cost:{" "}
+                    <strong>₹{formatINR(floorProjectCost)}</strong>
+                  </p>
+                </div>
+              )}
             </>
           )}
           {feeMode === "percentage" && (
@@ -390,9 +578,27 @@ export function CreateInvoicePage() {
 
         <div className="summary-box" style={{ marginTop: "1rem" }}>
           {feeMode === "percentage" && (
-            <div>
-              Project cost: <strong>₹{formatINR(totals.projectCost)}</strong>
-            </div>
+            <>
+              {areaMode === "floors" &&
+                floors.map((floor, idx) => {
+                  const area = Number(floor.area) || 0;
+                  const rate = Number(floor.cost) || 0;
+                  if (!(area > 0 && rate > 0)) return null;
+                  return (
+                    <div key={idx}>
+                      {floor.label.trim() || `Floor ${idx + 1}`}:{" "}
+                      <strong>
+                        {formatINR(area)} sqft × ₹{formatINR(rate)} = ₹
+                        {formatINR(area * rate)}
+                      </strong>
+                    </div>
+                  );
+                })}
+              <div>
+                Project cost: <strong>₹{formatINR(totals.projectCost)}</strong>
+                <span style={{ opacity: 0.8 }}> (not billed)</span>
+              </div>
+            </>
           )}
           <div>
             Fee: <strong>₹{formatINR(totals.feeAmount)}</strong>
@@ -404,11 +610,7 @@ export function CreateInvoicePage() {
           )}
           <div>
             Billable total: <strong>₹{formatINR(totals.totalBill)}</strong>
-            <span style={{ opacity: 0.8 }}>
-              {feeMode === "percentage"
-                ? " (project cost + fee + additional)"
-                : " (fee + additional)"}
-            </span>
+            <span style={{ opacity: 0.8 }}> (fee + additional only)</span>
           </div>
         </div>
 

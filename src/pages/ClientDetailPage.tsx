@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
+import { DetailSkeleton } from "../components/Skeleton";
 import {
   formatDisplayDate,
   formatINR,
@@ -9,6 +10,7 @@ import {
   todayISO,
 } from "../lib/calc";
 import {
+  completeClientGroup,
   deleteClientGroup,
   getClientGroup,
   markSchedulePaid,
@@ -37,10 +39,12 @@ export function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const [editName, setEditName] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [settling, setSettling] = useState(false);
 
   async function refresh() {
     if (!groupId) return;
@@ -205,12 +209,23 @@ export function ClientDetailPage() {
     }
   }
 
+  async function onConfirmComplete() {
+    if (!groupId) return;
+    setSettling(true);
+    try {
+      await completeClientGroup(groupId);
+      setConfirmComplete(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Complete failed");
+      setConfirmComplete(false);
+    } finally {
+      setSettling(false);
+    }
+  }
+
   if (loading) {
-    return (
-      <p className="empty" style={{ color: "#e8d48b" }}>
-        Loading client…
-      </p>
-    );
+    return <DetailSkeleton />;
   }
 
   if (!groupId || error || !invoices.length) {
@@ -225,6 +240,7 @@ export function ClientDetailPage() {
   }
 
   const latest = invoices[0];
+  const isCompleted = invoices.every((inv) => Boolean(inv.completed));
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "ledger", label: "Ledger" },
@@ -241,15 +257,35 @@ export function ClientDetailPage() {
             ← Back
           </Link>
           <div>
-            <h1>{name}</h1>
+            <h1>
+              {name}
+              {isCompleted ? (
+                <span
+                  className="badge ok"
+                  style={{ marginLeft: 10, fontSize: "0.75rem" }}
+                >
+                  Complete
+                </span>
+              ) : null}
+            </h1>
             <p>{location}</p>
           </div>
         </div>
         <div className="row-actions client-header-actions">
+          {!isCompleted && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setConfirmComplete(true)}
+            >
+              Complete
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
             onClick={() => navigate(`/clients/${groupId}/invoice/new`)}
+            disabled={isCompleted}
           >
             + Invoice
           </button>
@@ -339,6 +375,19 @@ export function ClientDetailPage() {
           confirming={removing}
           onCancel={() => setConfirmDelete(false)}
           onConfirm={onConfirmDelete}
+        />
+      )}
+
+      {confirmComplete && (
+        <ConfirmDeleteModal
+          title="Mark customer complete?"
+          message={`Make sure you want to complete "${name}". This will clear and settle all dues — mark all payments paid and set balance to zero.`}
+          confirmLabel="Complete"
+          confirmingLabel="Completing…"
+          danger={false}
+          confirming={settling}
+          onCancel={() => setConfirmComplete(false)}
+          onConfirm={onConfirmComplete}
         />
       )}
 

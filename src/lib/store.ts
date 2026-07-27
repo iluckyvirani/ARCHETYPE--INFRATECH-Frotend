@@ -51,6 +51,8 @@ function normalizeInvoice(c: Invoice): Invoice {
     advanceAmount: Number(c.advanceAmount) || 0,
     balance: Number(c.balance) || 0,
     totalBill: Number(c.totalBill) || 0,
+    completed: Boolean(c.completed),
+    completedAt: c.completedAt ?? null,
   };
 }
 
@@ -267,6 +269,7 @@ function toListItems(invoices: Invoice[]): ClientListItem[] {
       balance: rows.reduce((s, r) => s + r.balance, 0),
       latestInvoiceNo: latest.invoiceNo,
       createdAt: oldest.createdAt,
+      completed: rows.every((r) => Boolean(r.completed)),
     });
   }
   return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -706,6 +709,53 @@ export async function updateClientProfile(
       await apiFetch(`/api/clients/group/${groupId}`, {
         method: "PATCH",
         body: JSON.stringify({ name, location }),
+      });
+    } catch {
+      /* local already updated */
+    }
+  }
+}
+
+/** Mark customer complete: settle all dues, clear balance */
+export async function completeClientGroup(groupId: string): Promise<void> {
+  const today = todayISO();
+  const data = loadLocal();
+  const all = data.invoices.map(normalizeInvoice);
+  const target = all.filter(
+    (inv) =>
+      (inv.groupId || inv.id) === groupId ||
+      inv.id === groupId ||
+      inv.groupId === groupId
+  );
+  const ids = new Set(target.map((i) => i.id));
+  const gids = new Set(
+    target.flatMap((i) => [i.groupId || i.id, i.id])
+  );
+
+  data.invoices = data.invoices.map((inv) =>
+    ids.has(inv.id) || gids.has(inv.groupId || inv.id)
+      ? {
+          ...inv,
+          balance: 0,
+          completed: true,
+          completedAt: today,
+        }
+      : inv
+  );
+  data.schedule = data.schedule.map((s) =>
+    ids.has(s.invoiceId) ||
+    ids.has(s.clientId) ||
+    gids.has(s.clientId) ||
+    s.clientId === groupId
+      ? { ...s, paid: true, paidAt: s.paidAt || today }
+      : s
+  );
+  saveLocal(data);
+
+  if (USE_API) {
+    try {
+      await apiFetch(`/api/clients/group/${groupId}/complete`, {
+        method: "POST",
       });
     } catch {
       /* local already updated */

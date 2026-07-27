@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { todayISO } from "../lib/calc";
+import { formatDisplayDate, formatINR, todayISO } from "../lib/calc";
 
 type Props = {
   open: boolean;
   clientName: string;
   label: string;
   amount: number;
+  dueDate?: string;
   onClose: () => void;
   onConfirm: (paidAt: string) => Promise<void> | void;
 };
@@ -16,6 +17,7 @@ export function CollectPaymentModal({
   clientName,
   label,
   amount,
+  dueDate,
   onClose,
   onConfirm,
 }: Props) {
@@ -56,26 +58,34 @@ export function CollectPaymentModal({
       <div
         className="modal-card"
         role="dialog"
+        aria-modal="true"
         aria-labelledby="collect-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="collect-title" style={{ marginTop: 0 }}>
+        <h2
+          id="collect-title"
+          style={{ margin: "0 0 0.35rem", color: "#0b1f14", fontSize: "1.25rem" }}
+        >
           Collect amount
         </h2>
-        <p className="meta" style={{ marginBottom: "1rem" }}>
+        <p className="meta" style={{ margin: "0 0 1.15rem" }}>
           {clientName} — {label}
+          {dueDate ? ` · Due ${formatDisplayDate(dueDate)}` : ""}
         </p>
-        <form onSubmit={submit} className="form-grid">
+
+        <form
+          onSubmit={submit}
+          style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+        >
           <label className="field">
             Amount (₹)
             <input
               type="text"
               readOnly
-              value={amount.toLocaleString("en-IN", {
-                maximumFractionDigits: 2,
-              })}
+              value={formatINR(amount)}
             />
           </label>
+
           <label className="field">
             Actual paid date
             <input
@@ -87,18 +97,38 @@ export function CollectPaymentModal({
               required
             />
           </label>
+
           {error && (
-            <p className="error" style={{ color: "#b91c1c", margin: 0 }}>
+            <p className="error-text" style={{ margin: 0 }}>
               {error}
             </p>
           )}
-          <div className="row-actions" style={{ justifyContent: "flex-end" }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>
+
+          <div
+            className="row-actions"
+            style={{
+              marginTop: "0.35rem",
+              display: "flex",
+              gap: "0.65rem",
+            }}
+          >
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{
+                flex: 1,
+                color: "#0b1f14",
+                borderColor: "#0b1f14",
+              }}
+              onClick={onClose}
+              disabled={saving}
+            >
               Cancel
             </button>
             <button
               type="submit"
               className="btn btn-primary"
+              style={{ flex: 1 }}
               disabled={saving}
             >
               {saving ? "Saving…" : "Mark collected"}

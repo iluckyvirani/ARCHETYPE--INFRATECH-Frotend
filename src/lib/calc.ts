@@ -61,13 +61,36 @@ export function calcTotals(input: {
     feeAmount = projectCost;
   }
 
-  // Percentage: bill project cost + fee + extras. Fixed / area: fee (or area cost) + extras.
-  const totalBill =
-    input.feeMode === "percentage"
-      ? round2(projectCost + feeAmount + additionalTotal)
-      : round2(feeAmount + additionalTotal);
+  // Billable is fee (+ additional) only — project/post cost is reference, not billed.
+  const totalBill = round2(feeAmount + additionalTotal);
   const balance = round2(Math.max(0, totalBill - advance));
   return { projectCost, feeAmount, additionalTotal, totalBill, balance };
+}
+
+export function floorsAreaSum(
+  floors: { areaSqft?: number | string | null }[] | undefined
+): number {
+  return round2(
+    (floors || []).reduce((s, f) => s + (Number(f.areaSqft) || 0), 0)
+  );
+}
+
+/** Sum of each floor's area × its own cost per sqft */
+export function floorsProjectCost(
+  floors:
+    | {
+        areaSqft?: number | string | null;
+        costPerSqft?: number | string | null;
+      }[]
+    | undefined
+): number {
+  return round2(
+    (floors || []).reduce(
+      (s, f) =>
+        s + (Number(f.areaSqft) || 0) * (Number(f.costPerSqft) || 0),
+      0
+    )
+  );
 }
 
 export function addMonths(isoDate: string, months: number): string {

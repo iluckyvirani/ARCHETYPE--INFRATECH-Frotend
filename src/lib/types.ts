@@ -1,7 +1,13 @@
 export type FeeMode = "percentage" | "fixed" | "area_sqft";
+export type AreaMode = "total" | "floors";
 export type PaymentPlan = "one_time" | "installment" | "stage" | "none";
 export type InstallmentMode = "by_months" | "count_over_months";
 export type ScheduleKind = "advance" | "one_time" | "installment" | "stage";
+
+export type FloorArea = {
+  label: string;
+  areaSqft: number;
+};
 
 export type StageInput = {
   name: string;
@@ -53,6 +59,8 @@ export type Invoice = {
   installmentMonths: number | null;
   installmentCount: number | null;
   oneTimeDueDate: string | null;
+  completed?: boolean;
+  completedAt?: string | null;
   createdAt: string;
 };
 
@@ -71,6 +79,7 @@ export type ClientListItem = {
   balance: number;
   latestInvoiceNo: string;
   createdAt: string;
+  completed?: boolean;
 };
 
 export type NotificationItem = {

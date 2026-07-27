@@ -1,7 +1,10 @@
-type ConfirmDeleteModalProps = {
+type ConfirmModalProps = {
   title?: string;
   message: string;
   confirming?: boolean;
+  confirmLabel?: string;
+  confirmingLabel?: string;
+  danger?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -10,9 +13,12 @@ export function ConfirmDeleteModal({
   title = "Delete client?",
   message,
   confirming = false,
+  confirmLabel = "Delete",
+  confirmingLabel = "Deleting…",
+  danger = true,
   onCancel,
   onConfirm,
-}: ConfirmDeleteModalProps) {
+}: ConfirmModalProps) {
   return (
     <div
       className="modal-backdrop"
@@ -23,13 +29,19 @@ export function ConfirmDeleteModal({
         className="modal-card panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="delete-modal-title"
+        aria-labelledby="confirm-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="delete-modal-title" style={{ margin: "0 0 0.75rem", color: "#0b1f14" }}>
+        <h2
+          id="confirm-modal-title"
+          style={{ margin: "0 0 0.75rem", color: "#0b1f14" }}
+        >
           {title}
         </h2>
-        <p className="meta" style={{ marginBottom: "1.25rem", lineHeight: 1.45 }}>
+        <p
+          className="meta"
+          style={{ marginBottom: "1.25rem", lineHeight: 1.45 }}
+        >
           {message}
         </p>
         <div className="row-actions">
@@ -44,11 +56,11 @@ export function ConfirmDeleteModal({
           </button>
           <button
             type="button"
-            className="btn btn-danger"
+            className={danger ? "btn btn-danger" : "btn btn-primary"}
             onClick={onConfirm}
             disabled={confirming}
           >
-            {confirming ? "Deleting…" : "Delete"}
+            {confirming ? confirmingLabel : confirmLabel}
           </button>
         </div>
       </div>
