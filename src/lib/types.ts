@@ -41,6 +41,8 @@ export type Invoice = {
   name: string;
   location: string;
   projectName: string;
+  workTypes: string[];
+  workTypeCustom: string | null;
   feeMode: FeeMode;
   areaSqft: number | null;
   costPerSqft: number | null;
@@ -50,6 +52,8 @@ export type Invoice = {
   fixedAmount: number | null;
   additionalWorks: AdditionalWork[];
   additionalTotal: number;
+  visitIncluded: boolean;
+  visitFee: number;
   totalBill: number;
   advanceAmount: number;
   advanceDate: string | null;
@@ -107,12 +111,16 @@ export type ClientPayload = {
   name: string;
   location: string;
   projectName: string;
+  workTypes?: string[];
+  workTypeCustom?: string | null;
   feeMode: FeeMode;
   areaSqft?: number | null;
   costPerSqft?: number | null;
   feePercent?: number | null;
   fixedAmount?: number | null;
   additionalWorks?: AdditionalWork[];
+  visitIncluded?: boolean;
+  visitFee?: number | null;
   advanceAmount: number;
   advanceDate?: string | null;
   paymentPlan: PaymentPlan;

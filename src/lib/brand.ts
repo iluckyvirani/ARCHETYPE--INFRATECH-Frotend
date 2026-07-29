@@ -1,6 +1,6 @@
 export const BRAND = {
-  name: "ARCHETYPE INFRATECH",
-  tagline: "Building Tomorrow, Together",
+  name: "ARCHETIVE INFRATECH",
+  tagline: "DECORATE YOUR KINGDOM WITH A TOUCH OF ROYALTY",
   designer: "Shubham Jain",
   phones: ["9719131008", "7055770555", "8439696814"],
   email: "Archetypeinfratech@gmail.com",

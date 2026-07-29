@@ -16,6 +16,13 @@ function resolveType(raw: string | undefined): PrintType {
   return "invoice";
 }
 
+function planSectionTitle(plan: Client["paymentPlan"]): string {
+  if (plan === "installment") return "Installment schedule";
+  if (plan === "stage") return "Stage payment schedule";
+  if (plan === "one_time") return "Full payment";
+  return "Payment schedule";
+}
+
 export function InvoicePrintPage() {
   const { id, type: typeParam } = useParams();
   const [search] = useSearchParams();
@@ -50,9 +57,22 @@ export function InvoicePrintPage() {
     return schedule.find((s) => s.id === scheduleId) || null;
   }, [schedule, scheduleId]);
 
+  const paymentRows = useMemo(
+    () =>
+      schedule
+        .filter((s) => s.kind !== "advance")
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [schedule]
+  );
+
+  const advanceRows = useMemo(
+    () => schedule.filter((s) => s.kind === "advance"),
+    [schedule]
+  );
+
   if (error || !client) {
     return (
-      <div className="invoice-page">
+      <div className="invoice-page invoice-page--plain">
         <p>{error || "Loading…"}</p>
         <Link to="/clients">Back</Link>
       </div>
@@ -68,12 +88,6 @@ export function InvoicePrintPage() {
   const totalDue = Math.max(0, client.totalBill - receivedAmount);
   const showProjectTable =
     client.feeMode === "percentage" || client.feeMode === "area_sqft";
-  const feeLabel =
-    client.feeMode === "percentage"
-      ? `${client.feePercent}% FEES ON COST`
-      : client.feeMode === "fixed"
-        ? "FIXED AMOUNT"
-        : "AREA COST";
 
   const slipTitle =
     printType === "advance-demand"
@@ -126,7 +140,8 @@ export function InvoicePrintPage() {
         </div>
       </div>
       <p className="print-hint no-print">
-        Set Margins to <strong>None</strong> and enable background graphics.
+        Letterhead background — set Margins to <strong>None</strong> and enable
+        background graphics.
       </p>
 
       {printType === "advance-demand" && (
@@ -146,189 +161,221 @@ export function InvoicePrintPage() {
       )}
 
       {printType === "invoice" && (
-        <article className="invoice-page">
-          <header className="inv-header">
-            <div className="inv-header__left">
-              <p className="inv-kicker">Tax invoice</p>
-              <h1 className="inv-title">INVOICE</h1>
+        <article className="invoice-page invoice-page--letterhead">
+          <div className="inv-letterhead-body">
+            <div className="inv-doc-title">
+              <span>TAX INVOICE</span>
+              <strong>#{client.invoiceNo}</strong>
             </div>
-            <div className="inv-header__right">
-              <img
-                src="/logo.png"
-                alt={BRAND.name}
-                className="inv-logo"
-              />
-              <div className="inv-brand-text">
-                <div className="inv-company">{BRAND.name}</div>
-                <div className="inv-designer">by {BRAND.designer}</div>
-                <div className="inv-tagline">{BRAND.tagline}</div>
+
+            <div className="inv-meta">
+              <div className="inv-billto">
+                <p className="inv-label">Bill to</p>
+                <p className="inv-client-name">{client.name}</p>
+                <p>
+                  <span className="inv-muted">Project</span> {client.projectName}
+                </p>
+                <p>
+                  <span className="inv-muted">Address</span> {client.location}
+                </p>
+              </div>
+              <div className="inv-bank">
+                <p className="inv-label">Invoice date</p>
+                <p className="inv-date">
+                  {formatDisplayDate(client.createdAt.slice(0, 10))}
+                </p>
+                <p className="inv-label" style={{ marginTop: "0.35rem" }}>
+                  Bank details
+                </p>
+                <div className="inv-bank-grid">
+                  <p>
+                    <span className="inv-muted">A/C name</span>
+                    {BRAND.bank.accountName}
+                  </p>
+                  <p>
+                    <span className="inv-muted">A/C no.</span>
+                    {BRAND.bank.accountNo}
+                  </p>
+                  <p>
+                    <span className="inv-muted">Bank</span>
+                    {BRAND.bank.bankName}
+                  </p>
+                  <p>
+                    <span className="inv-muted">Branch</span>
+                    {BRAND.bank.branch}
+                  </p>
+                  <p>
+                    <span className="inv-muted">IFSC</span>
+                    {BRAND.bank.ifsc.replace(/\s*\(.*\)\s*$/, "").trim()}
+                  </p>
+                  <p>
+                    <span className="inv-muted">MSME</span>
+                    {BRAND.bank.msme}
+                  </p>
+                </div>
               </div>
             </div>
-          </header>
 
-          <div className="inv-gold-rule" aria-hidden />
+            {showProjectTable && (
+              <section className="inv-section">
+                <div className="inv-banner">
+                  Complete project fees
+                  {client.costPerSqft
+                    ? ` — ₹${formatINR(client.costPerSqft)} / sqft`
+                    : ""}
+                </div>
+                <table className="inv-table">
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Particulars</th>
+                      <th>Area sqft</th>
+                      <th>Fees / sqft</th>
+                      <th>Total fees</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>1</td>
+                      <td className="inv-particulars">
+                        <strong>Project area</strong>
+                        <span>{client.projectName}</span>
+                      </td>
+                      <td>{client.areaSqft ?? "—"}</td>
+                      <td>
+                        {client.costPerSqft != null
+                          ? formatINR(client.costPerSqft)
+                          : "—"}
+                      </td>
+                      <td>{formatINR(client.projectCost)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="inv-subtotal inv-subtotal--end">
+                  <strong>₹{formatINR(client.projectCost)}</strong>
+                </div>
+              </section>
+            )}
 
-          <div className="inv-meta">
-            <div className="inv-billto">
-              <div className="inv-chip">
-                Invoice no. <strong>#{client.invoiceNo}</strong>
-              </div>
-              <p className="inv-label">Bill to</p>
-              <p className="inv-client-name">{client.name}</p>
-              <p>
-                <span className="inv-muted">Project</span> {client.projectName}
-              </p>
-              <p>
-                <span className="inv-muted">Address</span> {client.location}
-              </p>
-            </div>
-            <div className="inv-bank">
-              <p className="inv-label">Invoice date</p>
-              <p className="inv-date">
-                {formatDisplayDate(client.createdAt.slice(0, 10))}
-              </p>
-              <p className="inv-label" style={{ marginTop: "0.45rem" }}>
-                Bank details
-              </p>
-              <p>
-                <span className="inv-muted">A/C</span> {BRAND.bank.accountName} ·{" "}
-                {BRAND.bank.accountNo}
-              </p>
-              <p>
-                <span className="inv-muted">Bank</span> {BRAND.bank.bankName} ·{" "}
-                {BRAND.bank.branch}
-              </p>
-              <p>
-                <span className="inv-muted">IFSC</span>{" "}
-                {BRAND.bank.ifsc.replace(/\s*\(.*\)\s*$/, "").trim()}
-              </p>
-              <p>
-                <span className="inv-muted">MSME</span> {BRAND.bank.msme}
-              </p>
-            </div>
-          </div>
-
-          {showProjectTable && (
             <section className="inv-section">
-              <div className="inv-banner">
-                Complete project cost
-                {client.costPerSqft
-                  ? ` — ₹${formatINR(client.costPerSqft)} / sqft`
-                  : ""}
-              </div>
-              <table className="inv-table">
+              <table className="inv-table fees">
                 <thead>
                   <tr>
-                    <th>No.</th>
                     <th>Particulars</th>
-                    <th>Area sqft</th>
-                    <th>Cost / sqft</th>
-                    <th>Project cost</th>
+                    <th>Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>1</td>
                     <td className="inv-particulars">
-                      <strong>Project area</strong>
-                      <span>{client.projectName}</span>
+                      <strong>
+                        {client.visitIncluded
+                          ? "Total fees (visit included)"
+                          : "Total fees"}
+                      </strong>
                     </td>
-                    <td>{client.areaSqft ?? "—"}</td>
-                    <td>
-                      {client.costPerSqft != null
-                        ? formatINR(client.costPerSqft)
-                        : "—"}
+                    <td>{formatINR(client.feeAmount)}</td>
+                  </tr>
+                  {(client.additionalWorks || []).map((work, i) => (
+                    <tr key={i}>
+                      <td className="inv-particulars">{work.name}</td>
+                      <td>{formatINR(work.qty * work.rate)}</td>
+                    </tr>
+                  ))}
+                  {!client.visitIncluded && (client.visitFee || 0) > 0 && (
+                    <tr>
+                      <td className="inv-particulars">Visit fee</td>
+                      <td>{formatINR(client.visitFee)}</td>
+                    </tr>
+                  )}
+                  {client.visitIncluded && (
+                    <tr>
+                      <td className="inv-particulars">Visit</td>
+                      <td>Included</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="inv-particulars">
+                      <strong>Total received amount</strong>
                     </td>
-                    <td>{formatINR(client.projectCost)}</td>
+                    <td>{formatINR(receivedAmount)}</td>
+                  </tr>
+                  <tr className="due-row">
+                    <td>Total due</td>
+                    <td>₹{formatINR(totalDue)}</td>
                   </tr>
                 </tbody>
               </table>
-              <div className="inv-subtotal">
-                <span>Project total</span>
-                <span>{client.areaSqft ?? ""} sqft</span>
-                <strong>₹{formatINR(client.projectCost)}</strong>
+
+              <div className="inv-grand">
+                <span>Amount payable</span>
+                <strong>₹{formatINR(totalDue)}</strong>
               </div>
             </section>
-          )}
 
-          <section className="inv-section">
-            <table className="inv-table fees">
-              <thead>
-                <tr>
-                  <th>Particulars</th>
-                  <th>Total cost</th>
-                  <th>{feeLabel}</th>
-                  <th>Amount (₹)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="inv-particulars">
-                    <strong>Total fees including visit</strong>
-                  </td>
-                  <td>
-                    {client.feeMode === "percentage"
-                      ? formatINR(client.projectCost)
-                      : formatINR(client.feeAmount)}
-                  </td>
-                  <td>{formatINR(client.feeAmount)}</td>
-                  <td>{formatINR(client.feeAmount)}</td>
-                </tr>
-                {(client.additionalWorks || []).map((work, i) => (
-                  <tr key={i}>
-                    <td className="inv-particulars">{work.name}</td>
-                    <td>{work.qty}</td>
-                    <td>{formatINR(work.rate)}</td>
-                    <td>{formatINR(work.qty * work.rate)}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td className="inv-particulars">
-                    <strong>Total received amount</strong>
-                  </td>
-                  <td colSpan={2}></td>
-                  <td>{formatINR(receivedAmount)}</td>
-                </tr>
-                <tr className="due-row">
-                  <td colSpan={3}>Total due</td>
-                  <td>₹{formatINR(totalDue)}</td>
-                </tr>
-              </tbody>
-            </table>
+            {(advanceRows.length > 0 || paymentRows.length > 0) && (
+              <section className="inv-section">
+                <div className="inv-banner">
+                  {planSectionTitle(client.paymentPlan)}
+                </div>
+                <table className="inv-table">
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Particulars</th>
+                      <th>Due date</th>
+                      <th>Amount (₹)</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advanceRows.map((row, i) => (
+                      <tr key={row.id}>
+                        <td>{i + 1}</td>
+                        <td className="inv-particulars">
+                          <strong>{row.label}</strong>
+                        </td>
+                        <td>{formatDisplayDate(row.dueDate)}</td>
+                        <td>{formatINR(row.amount)}</td>
+                        <td>{row.paid ? "Paid" : "Pending"}</td>
+                      </tr>
+                    ))}
+                    {paymentRows.map((row, i) => (
+                      <tr key={row.id}>
+                        <td>{advanceRows.length + i + 1}</td>
+                        <td className="inv-particulars">
+                          <strong>
+                            {client.paymentPlan === "one_time"
+                              ? "Full balance payment"
+                              : row.label}
+                          </strong>
+                        </td>
+                        <td>{formatDisplayDate(row.dueDate)}</td>
+                        <td>{formatINR(row.amount)}</td>
+                        <td>{row.paid ? "Paid" : "Pending"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
 
-            <div className="inv-grand">
-              <span>Amount payable</span>
-              <strong>₹{formatINR(totalDue)}</strong>
-            </div>
-          </section>
-
-          <footer className="inv-footer">
-            <div className="inv-terms">
-              <strong>Terms and conditions</strong>
-              <ol>
-                {BRAND.terms.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ol>
-              <div className="inv-contact">
-                <span>{BRAND.website}</span>
-                <span>{BRAND.email}</span>
-                <span>{BRAND.instagram}</span>
+            <footer className="inv-footer inv-footer--letterhead">
+              <div className="inv-terms">
+                <strong>Terms and conditions</strong>
+                <ol>
+                  {BRAND.terms.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ol>
               </div>
-            </div>
-            <div className="inv-sign">
-              <p className="inv-label">Authorised signatory</p>
-              <div className="inv-sign-line" />
-              <p className="inv-sign-name">{BRAND.designer}</p>
-              <div className="phones">
-                {BRAND.phones.slice(0, 2).map((p) => (
-                  <div key={p}>{p}</div>
-                ))}
+              <div className="inv-sign">
+                <p className="inv-label">Authorised signatory</p>
+                <div className="inv-sign-line" />
+                <p className="inv-sign-name">{BRAND.designer}</p>
               </div>
-            </div>
-          </footer>
-
-          <div className="inv-address">{BRAND.address}</div>
+            </footer>
+          </div>
         </article>
       )}
     </div>

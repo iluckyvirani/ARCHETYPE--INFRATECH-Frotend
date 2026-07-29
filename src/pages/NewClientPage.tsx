@@ -15,6 +15,7 @@ import {
   todayISO,
 } from "../lib/calc";
 import { createClient } from "../lib/store";
+import { WorkTypeSelect } from "../components/WorkTypeSelect";
 import type {
   AdditionalWork,
   AreaMode,
@@ -49,6 +50,9 @@ export function NewClientPage() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [workTypes, setWorkTypes] = useState<string[]>([]);
+  const [workTypeCustom, setWorkTypeCustom] = useState("");
+  const [workTypeCustomEnabled, setWorkTypeCustomEnabled] = useState(false);
   const [feeMode, setFeeMode] = useState<FeeMode>("percentage");
   const [areaMode, setAreaMode] = useState<AreaMode>("total");
   const [areaSqft, setAreaSqft] = useState("");
@@ -57,6 +61,8 @@ export function NewClientPage() {
   const [feePercent, setFeePercent] = useState("7");
   const [fixedAmount, setFixedAmount] = useState("");
   const [additionalWorks, setAdditionalWorks] = useState<AdditionalWork[]>([]);
+  const [visitIncluded, setVisitIncluded] = useState(true);
+  const [visitFee, setVisitFee] = useState("");
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [advanceDate, setAdvanceDate] = useState(todayISO());
   const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>("one_time");
@@ -97,6 +103,8 @@ export function NewClientPage() {
         fixedAmount: Number(fixedAmount) || 0,
         advanceAmount: Number(advanceAmount) || 0,
         additionalWorks,
+        visitIncluded,
+        visitFee: Number(visitFee) || 0,
       }),
     [
       feeMode,
@@ -106,6 +114,8 @@ export function NewClientPage() {
       fixedAmount,
       advanceAmount,
       additionalWorks,
+      visitIncluded,
+      visitFee,
     ]
   );
 
@@ -177,6 +187,21 @@ export function NewClientPage() {
       setError("Client name, location and project name are required.");
       return;
     }
+    if (
+      workTypes.length === 0 &&
+      !(workTypeCustomEnabled && workTypeCustom.trim())
+    ) {
+      setError("Select at least one type of working.");
+      return;
+    }
+    if (workTypeCustomEnabled && !workTypeCustom.trim()) {
+      setError("Enter custom work type, or turn off Customise.");
+      return;
+    }
+    if (!visitIncluded && !(Number(visitFee) > 0)) {
+      setError("Enter visit fee amount, or check Visit included.");
+      return;
+    }
 
     if (feeMode === "percentage") {
       if (areaMode === "floors") {
@@ -187,13 +212,13 @@ export function NewClientPage() {
             Number(f.cost) > 0
         );
         if (!ok || !(Number(feePercent) > 0)) {
-          setError("Enter floor name, area, cost per sqft for each floor, and fee %.");
+          setError("Enter floor name, area, fee per sqft for each floor, and fee %.");
           return;
         }
       } else if (
         !(effectiveArea > 0 && Number(costPerSqft) > 0 && Number(feePercent) > 0)
       ) {
-        setError("Enter area, cost per sqft and percentage.");
+        setError("Enter area, fee per sqft and percentage.");
         return;
       }
     }
@@ -207,11 +232,11 @@ export function NewClientPage() {
           (f) => f.label.trim() && Number(f.area) > 0 && Number(f.cost) > 0
         );
         if (!ok) {
-          setError("Enter floor name, area and cost per sqft for each floor.");
+          setError("Enter floor name, area and fee per sqft for each floor.");
           return;
         }
       } else if (!(effectiveArea > 0 && Number(costPerSqft) > 0)) {
-        setError("Enter area and cost per sqft.");
+        setError("Enter area and fee per sqft.");
         return;
       }
     }
@@ -269,6 +294,10 @@ export function NewClientPage() {
         name,
         location,
         projectName,
+        workTypes,
+        workTypeCustom: workTypeCustomEnabled
+          ? workTypeCustom.trim()
+          : null,
         feeMode,
         areaSqft: effectiveArea || null,
         costPerSqft: effectiveRate || null,
@@ -277,6 +306,8 @@ export function NewClientPage() {
         additionalWorks: additionalWorks.filter(
           (w) => w.name.trim() && (Number(w.qty) > 0 || Number(w.rate) > 0)
         ),
+        visitIncluded,
+        visitFee: visitIncluded ? 0 : Number(visitFee) || 0,
         advanceAmount: advance,
         advanceDate: advance > 0 ? advanceDate : null,
         paymentPlan: effectivePlan,
@@ -336,6 +367,16 @@ export function NewClientPage() {
               required
             />
           </label>
+          <WorkTypeSelect
+            selected={workTypes}
+            custom={workTypeCustom}
+            customEnabled={workTypeCustomEnabled}
+            onChange={({ selected, custom, customEnabled }) => {
+              setWorkTypes(selected);
+              setWorkTypeCustom(custom);
+              setWorkTypeCustomEnabled(customEnabled);
+            }}
+          />
         </div>
 
         <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
@@ -400,7 +441,7 @@ export function NewClientPage() {
                     />
                   </label>
                   <label className="field">
-                    Cost per sqft (₹)
+                    Fee per sqft (₹)
                     <input
                       type="number"
                       min="0"
@@ -461,7 +502,7 @@ export function NewClientPage() {
                             />
                           </label>
                           <label className="field">
-                            Cost per sqft (₹)
+                            Fee per sqft (₹)
                             <input
                               type="number"
                               min="0"
@@ -489,7 +530,7 @@ export function NewClientPage() {
                           >
                             {area > 0 && rate > 0
                               ? `${formatINR(area)} × ₹${formatINR(rate)} = ₹${formatINR(line)}`
-                              : "Area × cost"}
+                              : "Area × fee"}
                             {floors.length > 1 && (
                               <button
                                 type="button"
@@ -598,8 +639,19 @@ export function NewClientPage() {
             </div>
           )}
           <div>
+            Visit:{" "}
+            <strong>
+              {visitIncluded
+                ? "Included"
+                : `₹${formatINR(totals.visitFee)}`}
+            </strong>
+          </div>
+          <div>
             Billable total: <strong>₹{formatINR(totals.totalBill)}</strong>
-            <span style={{ opacity: 0.8 }}> (fee + additional only)</span>
+            <span style={{ opacity: 0.8 }}>
+              {" "}
+              (fee + additional + visit)
+            </span>
           </div>
         </div>
 
@@ -687,6 +739,43 @@ export function NewClientPage() {
           <p className="meta" style={{ marginTop: "0.5rem" }}>
             Additional total: ₹{formatINR(additionalWorksSum(additionalWorks))}
           </p>
+        )}
+
+        <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+          Visit
+        </h2>
+        <label
+          className="field"
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: "0.65rem",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={visitIncluded}
+            onChange={(e) => setVisitIncluded(e.target.checked)}
+            style={{ width: 18, height: 18 }}
+          />
+          <span>Visit included</span>
+        </label>
+        <p className="meta" style={{ margin: "0.35rem 0 0.75rem" }}>
+          Check if visit is included in the bill. Uncheck to enter a visit fee.
+        </p>
+        {!visitIncluded && (
+          <label className="field" style={{ maxWidth: 280 }}>
+            Visit fee (₹)
+            <input
+              type="number"
+              min="0"
+              step="any"
+              placeholder="Enter visit fee"
+              value={visitFee}
+              onChange={(e) => setVisitFee(e.target.value)}
+            />
+          </label>
         )}
 
         <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>

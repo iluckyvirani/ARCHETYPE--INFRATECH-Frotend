@@ -16,6 +16,7 @@ import {
   markSchedulePaid,
   updateClientProfile,
 } from "../lib/store";
+import { formatWorkTypes } from "../lib/workTypes";
 import type { Invoice, ScheduleItem } from "../lib/types";
 import "./ClientDetail.css";
 
@@ -412,6 +413,12 @@ export function ClientDetailPage() {
           <span className="stat-label">Last sale</span>
           <strong>#{latest.invoiceNo}</strong>
         </div>
+        <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
+          <span className="stat-label">Type of working</span>
+          <strong>
+            {formatWorkTypes(latest.workTypes, latest.workTypeCustom)}
+          </strong>
+        </div>
       </div>
 
       <nav className="detail-tabs" aria-label="Client sections">
@@ -724,6 +731,7 @@ export function ClientDetailPage() {
                   <th>Invoice</th>
                   <th>Date</th>
                   <th>Project</th>
+                  <th>Work type</th>
                   <th>Total</th>
                   <th>Advance</th>
                   <th>Balance</th>
@@ -739,6 +747,9 @@ export function ClientDetailPage() {
                       {formatDisplayDate(inv.createdAt.slice(0, 10))}
                     </td>
                     <td data-label="Project">{inv.projectName}</td>
+                    <td data-label="Work type">
+                      {formatWorkTypes(inv.workTypes, inv.workTypeCustom)}
+                    </td>
                     <td data-label="Total">₹{formatINR(inv.totalBill)}</td>
                     <td data-label="Advance">₹{formatINR(inv.advanceAmount)}</td>
                     <td data-label="Balance">₹{formatINR(inv.balance)}</td>

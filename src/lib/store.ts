@@ -53,6 +53,10 @@ function normalizeInvoice(c: Invoice): Invoice {
     totalBill: Number(c.totalBill) || 0,
     completed: Boolean(c.completed),
     completedAt: c.completedAt ?? null,
+    workTypes: Array.isArray(c.workTypes) ? c.workTypes : [],
+    workTypeCustom: c.workTypeCustom ?? null,
+    visitIncluded: Boolean(c.visitIncluded),
+    visitFee: Number(c.visitFee) || 0,
   };
 }
 
@@ -131,6 +135,8 @@ function buildInvoice(
     name: payload.name.trim(),
     location: payload.location.trim(),
     projectName: payload.projectName.trim(),
+    workTypes: [...(payload.workTypes || [])],
+    workTypeCustom: (payload.workTypeCustom || "").trim() || null,
     feeMode: payload.feeMode,
     areaSqft: payload.areaSqft ?? null,
     costPerSqft: payload.costPerSqft ?? null,
@@ -142,6 +148,8 @@ function buildInvoice(
       (w) => w.name.trim() && (Number(w.qty) > 0 || Number(w.rate) > 0)
     ),
     additionalTotal: totals.additionalTotal,
+    visitIncluded: Boolean(payload.visitIncluded),
+    visitFee: totals.visitFee,
     totalBill: totals.totalBill,
     advanceAmount: Number(payload.advanceAmount) || 0,
     advanceDate: payload.advanceDate || null,

@@ -33,10 +33,13 @@ export function calcTotals(input: {
   fixedAmount?: number | null;
   advanceAmount?: number;
   additionalWorks?: AdditionalWork[];
+  visitIncluded?: boolean;
+  visitFee?: number | null;
 }): {
   projectCost: number;
   feeAmount: number;
   additionalTotal: number;
+  visitFee: number;
   totalBill: number;
   balance: number;
 } {
@@ -46,6 +49,9 @@ export function calcTotals(input: {
   const fixed = Number(input.fixedAmount) || 0;
   const advance = Number(input.advanceAmount) || 0;
   const additionalTotal = additionalWorksSum(input.additionalWorks);
+  const visitFee = input.visitIncluded
+    ? 0
+    : round2(Number(input.visitFee) || 0);
 
   let projectCost = 0;
   let feeAmount = 0;
@@ -61,10 +67,17 @@ export function calcTotals(input: {
     feeAmount = projectCost;
   }
 
-  // Billable is fee (+ additional) only — project/post cost is reference, not billed.
-  const totalBill = round2(feeAmount + additionalTotal);
+  // Billable: fee + additional + visit fee (when visit not included)
+  const totalBill = round2(feeAmount + additionalTotal + visitFee);
   const balance = round2(Math.max(0, totalBill - advance));
-  return { projectCost, feeAmount, additionalTotal, totalBill, balance };
+  return {
+    projectCost,
+    feeAmount,
+    additionalTotal,
+    visitFee,
+    totalBill,
+    balance,
+  };
 }
 
 export function floorsAreaSum(
