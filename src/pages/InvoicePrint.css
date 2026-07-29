@@ -1,355 +1,496 @@
-/* Invoice print — Archetive Infratech letterhead (one A4) */
+/* Premium letterhead invoice — clean type, soft panels, quiet tables */
 
 .invoice-wrap {
   min-height: 100vh;
-  background: #1a1a1a;
+  background: #2a2a2a;
   padding: 1rem;
 }
 
 .invoice-page {
+  --inv-ink: #1a2e24;
+  --inv-muted: #6b736c;
+  --inv-line: rgba(11, 61, 46, 0.14);
+  --inv-green: #0b3d2e;
+  --inv-cream: #fffcf6;
+  --inv-gold: #b8952a;
+  --inv-gold-soft: #f3ead0;
+
   width: 210mm;
   max-width: 100%;
-  min-height: 297mm;
   margin: 0 auto;
-  color: #14241a;
-  padding: 0;
+  color: var(--inv-ink);
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
-  font-size: 10.5px;
-  line-height: 1.32;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.35;
+  font-weight: 500;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  position: relative;
+  box-sizing: border-box;
+}
+
+.invoice-page *,
+.invoice-page *::before,
+.invoice-page *::after {
+  box-sizing: border-box;
 }
 
 .invoice-page--plain {
   background: #fffdf8;
-  min-height: auto;
   padding: 1rem;
+  min-height: auto;
 }
 
 .invoice-page--letterhead {
-  background-color: #fff;
-  background-image: url("/bill-format.jpg");
-  background-repeat: no-repeat;
-  background-position: center top;
-  background-size: 100% 100%;
+  position: relative;
+  height: 297mm;
+  max-height: 297mm;
+  overflow: hidden;
+  background: #fff;
+}
+
+.inv-letterhead-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  object-position: center top;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  display: block;
 }
 
 .inv-letterhead-body {
-  /* Clear letterhead header + footer artwork */
-  padding: 48mm 14mm 40mm;
-  box-sizing: border-box;
-  min-height: 297mm;
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  /* Bottom ~54mm keeps terms/sign clear of letterhead contact bar */
+  padding: 88mm 12mm 54mm;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow: hidden;
+  justify-content: flex-start;
 }
 
+/* Title */
 .inv-doc-title {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 0 0 0.55rem;
-  padding-bottom: 0.35rem;
-  border-bottom: 1.5px solid rgba(201, 162, 39, 0.55);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 0 0.35rem;
+  border-bottom: 1px solid var(--inv-gold);
 }
 
 .inv-doc-title span {
   font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  font-weight: 800;
-  color: #0b3d2e;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--inv-green);
 }
 
 .inv-doc-title strong {
   font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 1.15rem;
-  color: #0b1f14;
+  font-weight: 600;
+  color: var(--inv-ink);
+  letter-spacing: 0.02em;
 }
 
+/* Meta panels */
 .inv-meta {
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  gap: 0.65rem;
-  margin-bottom: 0.55rem;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.inv-panel {
+  background: var(--inv-cream);
+  border: none;
+  border-left: 2.5px solid var(--inv-gold);
+  border-radius: 0 4px 4px 0;
+  padding: 0.35rem 0.5rem;
 }
 
 .inv-label {
-  margin: 0 0 0.15rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
+  margin: 0;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-weight: 800;
-  color: #0b3d2e;
+  font-weight: 700;
+  color: var(--inv-green);
+}
+
+.inv-label--spaced {
+  margin-top: 0.4rem;
+  margin-bottom: 0.2rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--inv-line);
 }
 
 .inv-client-name {
-  margin: 0 0 0.2rem;
+  margin: 0.1rem 0 0.25rem;
+  font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 1.05rem;
-  font-weight: 800;
-  color: #0b1f14;
+  font-weight: 600;
+  color: var(--inv-ink);
+  line-height: 1.15;
 }
 
-.inv-billto {
-  padding: 0.45rem 0.55rem;
-  background: rgba(255, 253, 248, 0.88);
-  border: 1px solid rgba(201, 162, 39, 0.3);
-  border-radius: 8px;
+.inv-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
-.inv-billto p {
-  margin: 0.08rem 0;
+.inv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.02rem;
+  min-width: 0;
 }
 
-.inv-muted {
-  display: inline-block;
-  min-width: 3.6rem;
-  color: #7a6a45;
-  font-size: 0.58rem;
+.inv-field span {
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 700;
-  margin-right: 0.3rem;
+  font-weight: 600;
+  color: var(--inv-muted);
 }
 
-.inv-bank {
-  text-align: left;
-  padding: 0.45rem 0.55rem;
-  background: rgba(247, 241, 226, 0.92);
-  border: 1px solid rgba(201, 162, 39, 0.35);
-  border-radius: 8px;
-  font-size: 0.92em;
+.inv-field strong {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--inv-ink);
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .inv-bank-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.1rem 0.55rem;
+  gap: 0.18rem 0.5rem;
 }
 
-.inv-bank-grid p {
-  margin: 0.06rem 0;
-  min-width: 0;
+.inv-date-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
 }
 
 .inv-date {
   margin: 0;
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #0b3d2e;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--inv-ink);
 }
 
+/* Sections */
 .inv-section {
-  margin-bottom: 0.45rem;
+  margin: 0;
+  flex-shrink: 0;
+  background: rgba(255, 252, 246, 0.92);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.inv-banner {
-  background: linear-gradient(90deg, #dcecc8, #c5dfb0);
-  color: #0b3d2e;
-  padding: 0.3rem 0.5rem;
-  font-weight: 800;
-  font-size: 0.64rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border-radius: 6px 6px 0 0;
-}
-
-.inv-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.inv-table th {
-  background: #0b3d2e;
-  color: #f7f3e8;
-  padding: 0.28rem 0.28rem;
-  font-size: 0.58rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  text-align: center;
-  font-weight: 700;
-}
-
-.inv-table td {
-  border: 1px solid #d9d0bc;
-  padding: 0.28rem 0.28rem;
-  text-align: center;
-  vertical-align: middle;
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.inv-particulars {
-  text-align: left !important;
-}
-
-.inv-particulars strong {
-  display: block;
-  color: #0b1f14;
-}
-
-.inv-particulars span {
-  display: block;
-  color: #6b6354;
-  font-size: 0.85em;
-  margin-top: 0.05rem;
-}
-
-.inv-subtotal {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 0.75rem;
-  align-items: center;
-  background: #0b3d2e;
-  color: #fff;
-  font-weight: 700;
-  padding: 0.32rem 0.55rem;
-  border-radius: 0 0 6px 6px;
-  font-size: 0.82rem;
-}
-
-.inv-subtotal--end {
-  grid-template-columns: 1fr;
-  justify-items: end;
-}
-
-.inv-table.fees th:last-child,
-.inv-table.fees td:last-child {
-  width: 28%;
-  text-align: right;
-  padding-right: 0.5rem;
-}
-
-.inv-grand {
+.inv-section-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 0.35rem;
-  padding: 0.4rem 0.65rem;
-  background: linear-gradient(90deg, #c9a227, #e0c15a);
-  color: #0b1f14;
-  border-radius: 8px;
-  font-size: 0.9rem;
+  padding: 0.2rem 0.45rem;
+  background: var(--inv-green);
+  color: #f7f3e8;
 }
 
-.inv-grand strong {
+.inv-section-head span {
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.inv-section-head em {
+  font-style: normal;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #e8d48b;
+}
+
+/* Tables — no vertical rules */
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+}
+
+.inv-table th {
+  background: transparent;
+  color: var(--inv-muted);
+  padding: 0.18rem 0.4rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  border-bottom: 1px solid var(--inv-line);
+}
+
+.inv-table thead {
+  background: rgba(11, 61, 46, 0.04);
+}
+
+.inv-table td {
+  border: none;
+  border-bottom: 1px solid var(--inv-line);
+  padding: 0.16rem 0.4rem;
+  vertical-align: middle;
+  background: transparent;
+  font-size: 0.74rem;
+  color: var(--inv-ink);
+}
+
+.inv-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.inv-table tbody tr:nth-child(even) td {
+  background: rgba(11, 61, 46, 0.03);
+}
+
+.inv-col-no {
+  width: 8%;
+  text-align: center;
+  color: var(--inv-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-col-part {
+  text-align: left;
+}
+
+.inv-col-part strong {
+  display: block;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.inv-col-part span {
+  display: block;
+  color: var(--inv-muted);
+  font-size: 0.68rem;
+  margin-top: 0.05rem;
+}
+
+.inv-col-num {
+  width: 16%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-col-amt {
+  width: 18%;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.inv-col-status {
+  width: 14%;
+  text-align: center;
+}
+
+.inv-table--summary td:first-child {
+  text-align: left;
+  padding-left: 0.55rem;
+}
+
+.inv-table--summary .inv-col-amt {
+  width: 28%;
+  padding-right: 0.55rem;
+}
+
+.inv-status {
+  display: inline-block;
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #8a7350;
+  background: var(--inv-gold-soft);
+  padding: 0.08rem 0.28rem;
+  border-radius: 999px;
+}
+
+.inv-status--paid {
+  color: var(--inv-green);
+  background: rgba(11, 61, 46, 0.1);
+}
+
+/* Payable — muted gold */
+.inv-payable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  padding: 0.28rem 0.5rem;
+  background: var(--inv-gold-soft);
+  border-top: 1px solid rgba(184, 149, 42, 0.35);
+  color: var(--inv-ink);
+}
+
+.inv-payable span {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--inv-green);
+}
+
+.inv-payable strong {
   font-family: "Cormorant Garamond", Georgia, serif;
-  font-size: 1.25rem;
-  letter-spacing: 0.02em;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--inv-ink);
+  letter-spacing: 0.01em;
 }
 
-.due-row td {
-  background: #eef6e4 !important;
-  font-weight: 800;
-  color: #0b3d2e;
-  text-align: right;
-}
-
-.due-row td:last-child {
-  text-align: right;
-  font-size: 0.92rem;
-}
-
+/* Footer — stays above letterhead contact bar via body padding */
 .inv-footer {
   display: grid;
-  grid-template-columns: 1.25fr 1fr;
-  gap: 0.5rem;
-  margin-top: 0.45rem;
-}
-
-.inv-footer--letterhead .inv-terms {
-  background: rgba(243, 234, 210, 0.92);
+  grid-template-columns: 1.35fr 0.9fr;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
 }
 
 .inv-terms {
-  background: #f3ead2;
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid rgba(201, 162, 39, 0.28);
-}
-
-.inv-terms strong {
-  display: block;
-  margin-bottom: 0.15rem;
-  color: #0b3d2e;
-  font-size: 0.75rem;
+  padding: 0.3rem 0.45rem;
 }
 
 .inv-terms ol {
   margin: 0.15rem 0 0;
-  padding-left: 1rem;
-  font-size: 0.82em;
+  padding-left: 0.9rem;
+  font-size: 0.65rem;
+  line-height: 1.3;
+  color: var(--inv-muted);
+}
+
+.inv-terms li {
+  margin-bottom: 0.05rem;
 }
 
 .inv-sign {
-  background: rgba(11, 61, 46, 0.95);
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
   text-align: right;
-  color: #f7f3e8;
-}
-
-.inv-sign .inv-label {
-  color: #e8d48b;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-height: 2.2rem;
+  padding: 0.3rem 0.45rem;
 }
 
 .inv-sign-line {
-  margin: 0.65rem 0 0.2rem auto;
-  width: 65%;
-  border-bottom: 1px solid rgba(232, 212, 139, 0.45);
+  margin: 0.55rem 0 0.12rem;
+  width: 70%;
+  border-bottom: 1px solid rgba(11, 61, 46, 0.28);
 }
 
 .inv-sign-name {
   margin: 0;
   font-family: "Cormorant Garamond", Georgia, serif;
   font-style: italic;
-  font-size: 1rem;
-  color: #f7f3e8;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--inv-ink);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .invoice-wrap {
-    padding: 0.75rem 0.5rem calc(0.75rem + env(safe-area-inset-bottom));
-  }
-
-  .invoice-page {
-    width: 100%;
-    min-height: auto;
-  }
-
-  .inv-letterhead-body {
-    padding: 42mm 10mm 36mm;
-    min-height: auto;
-  }
-
-  .inv-meta,
-  .inv-footer {
-    grid-template-columns: 1fr;
+    padding: 0.5rem;
+    overflow-x: auto;
   }
 }
 
 @media print {
   @page {
-    size: A4;
-    margin: 0;
+    size: A4 portrait;
+    margin: 0 !important;
   }
 
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    width: 210mm;
+    height: 297mm;
+  }
+
+  .invoice-wrap.print-shell,
   .invoice-wrap {
     background: transparent !important;
     padding: 0 !important;
-    min-height: 0;
+    margin: 0 !important;
+    min-height: 0 !important;
+    width: 210mm;
   }
 
   .invoice-page--letterhead {
-    width: 210mm;
-    min-height: 297mm;
-    box-shadow: none;
-    background-image: url("/bill-format.jpg") !important;
-    background-size: 100% 100% !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .inv-letterhead-bg {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   .inv-letterhead-body {
-    padding: 48mm 14mm 40mm;
+    padding: 88mm 12mm 54mm !important;
+  }
+
+  .inv-panel,
+  .inv-section,
+  .inv-table tbody tr:nth-child(even) td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .inv-section-head {
+    background: #0b3d2e !important;
+    color: #f7f3e8 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .inv-payable {
+    background: #f3ead0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .inv-status {
+    background: #f3ead0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print {
+    display: none !important;
   }
 }
