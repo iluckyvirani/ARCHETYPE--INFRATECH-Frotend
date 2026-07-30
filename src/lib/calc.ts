@@ -67,8 +67,8 @@ export function calcTotals(input: {
     feeAmount = projectCost;
   }
 
-  // Billable: fee + additional + visit fee (when visit not included)
-  const totalBill = round2(feeAmount + additionalTotal + visitFee);
+  // Billable: fee + additional only (visit is a note, not billed in total)
+  const totalBill = round2(feeAmount + additionalTotal);
   const balance = round2(Math.max(0, totalBill - advance));
   return {
     projectCost,

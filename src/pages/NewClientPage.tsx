@@ -642,16 +642,15 @@ export function NewClientPage() {
             Visit:{" "}
             <strong>
               {visitIncluded
-                ? "Included"
-                : `₹${formatINR(totals.visitFee)}`}
+                ? "Already included (note only)"
+                : totals.visitFee > 0
+                  ? `₹${formatINR(totals.visitFee)} (note only, not in total)`
+                  : "—"}
             </strong>
           </div>
           <div>
             Billable total: <strong>₹{formatINR(totals.totalBill)}</strong>
-            <span style={{ opacity: 0.8 }}>
-              {" "}
-              (fee + additional + visit)
-            </span>
+            <span style={{ opacity: 0.8 }}> (fee + additional)</span>
           </div>
         </div>
 

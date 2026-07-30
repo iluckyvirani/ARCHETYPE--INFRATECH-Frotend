@@ -412,6 +412,36 @@
   color: var(--inv-ink);
 }
 
+.inv-visit-note {
+  margin: 0.35rem 0 0;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--inv-line);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--inv-green);
+  letter-spacing: 0.02em;
+}
+
+.inv-visit-note--page2 {
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-left: 2.5px solid var(--inv-gold);
+  background: var(--inv-cream);
+  border-radius: 0 4px 4px 0;
+}
+
+.inv-page2-meta {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  color: var(--inv-muted);
+  font-weight: 600;
+}
+
+.invoice-page-break {
+  margin-top: 1.25rem;
+}
+
 @media (max-width: 900px) {
   .invoice-wrap {
     padding: 0.5rem;
@@ -430,8 +460,6 @@
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
-    width: 210mm;
-    height: 297mm;
   }
 
   .invoice-wrap.print-shell,
@@ -450,9 +478,14 @@
     margin: 0 !important;
     box-shadow: none !important;
     overflow: hidden !important;
-    page-break-after: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  .invoice-page-break {
+    margin-top: 0 !important;
+    break-before: page;
+    page-break-before: always;
   }
 
   .inv-letterhead-bg {

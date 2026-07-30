@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BRAND } from "../lib/brand";
 import { formatDisplayDate, formatINR } from "../lib/calc";
@@ -21,6 +21,89 @@ function planSectionTitle(plan: Client["paymentPlan"]): string {
   if (plan === "stage") return "Stage payment schedule";
   if (plan === "one_time") return "Full payment";
   return "Payment schedule";
+}
+
+function LetterheadShell({ children }: { children: ReactNode }) {
+  return (
+    <article className="invoice-page invoice-page--letterhead">
+      <img
+        src="/bill-format.jpg"
+        alt=""
+        className="inv-letterhead-bg"
+        aria-hidden
+      />
+      <div className="inv-letterhead-body">{children}</div>
+    </article>
+  );
+}
+
+function ScheduleTable({
+  client,
+  advanceRows,
+  paymentRows,
+}: {
+  client: Client;
+  advanceRows: ScheduleItem[];
+  paymentRows: ScheduleItem[];
+}) {
+  return (
+    <section className="inv-section">
+      <div className="inv-section-head">
+        <span>{planSectionTitle(client.paymentPlan)}</span>
+      </div>
+      <table className="inv-table">
+        <thead>
+          <tr>
+            <th className="inv-col-no">No.</th>
+            <th className="inv-col-part">Particulars</th>
+            <th className="inv-col-num">Due date</th>
+            <th className="inv-col-amt">Amount</th>
+            <th className="inv-col-status">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {advanceRows.map((row, i) => (
+            <tr key={row.id}>
+              <td className="inv-col-no">{i + 1}</td>
+              <td className="inv-col-part">{row.label}</td>
+              <td className="inv-col-num">{formatDisplayDate(row.dueDate)}</td>
+              <td className="inv-col-amt">₹{formatINR(row.amount)}</td>
+              <td className="inv-col-status">
+                <span
+                  className={
+                    row.paid ? "inv-status inv-status--paid" : "inv-status"
+                  }
+                >
+                  {row.paid ? "Paid" : "Pending"}
+                </span>
+              </td>
+            </tr>
+          ))}
+          {paymentRows.map((row, i) => (
+            <tr key={row.id}>
+              <td className="inv-col-no">{advanceRows.length + i + 1}</td>
+              <td className="inv-col-part">
+                {client.paymentPlan === "one_time"
+                  ? "Full balance payment"
+                  : row.label}
+              </td>
+              <td className="inv-col-num">{formatDisplayDate(row.dueDate)}</td>
+              <td className="inv-col-amt">₹{formatINR(row.amount)}</td>
+              <td className="inv-col-status">
+                <span
+                  className={
+                    row.paid ? "inv-status inv-status--paid" : "inv-status"
+                  }
+                >
+                  {row.paid ? "Paid" : "Pending"}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
 }
 
 export function InvoicePrintPage() {
@@ -85,9 +168,27 @@ export function InvoicePrintPage() {
       .filter((s) => s.kind !== "advance" && s.paid)
       .reduce((s, r) => s + r.amount, 0);
 
-  const totalDue = Math.max(0, client.totalBill - receivedAmount);
+  const additionalTotal = (client.additionalWorks || []).reduce(
+    (s, w) => s + w.qty * w.rate,
+    0
+  );
+  // Visit charge is never part of invoice total — note only
+  const invoiceTotal =
+    Math.round((client.feeAmount + additionalTotal) * 100) / 100;
+  const totalDue = Math.max(0, invoiceTotal - receivedAmount);
   const showProjectTable =
     client.feeMode === "percentage" || client.feeMode === "area_sqft";
+
+  const hasSchedule = advanceRows.length > 0 || paymentRows.length > 0;
+  const scheduleOnSecondPage =
+    hasSchedule &&
+    (client.paymentPlan === "installment" || client.paymentPlan === "stage");
+
+  const visitNote = client.visitIncluded
+    ? "Per visit charge already included"
+    : (client.visitFee || 0) > 0
+      ? `Per visit charge — ₹${formatINR(client.visitFee)}`
+      : null;
 
   const slipTitle =
     printType === "advance-demand"
@@ -161,14 +262,8 @@ export function InvoicePrintPage() {
       )}
 
       {printType === "invoice" && (
-        <article className="invoice-page invoice-page--letterhead">
-          <img
-            src="/bill-format.jpg"
-            alt=""
-            className="inv-letterhead-bg"
-            aria-hidden
-          />
-          <div className="inv-letterhead-body">
+        <>
+          <LetterheadShell>
             <header className="inv-doc-title">
               <span>Tax Invoice</span>
               <strong>#{client.invoiceNo}</strong>
@@ -276,11 +371,7 @@ export function InvoicePrintPage() {
               <table className="inv-table inv-table--summary">
                 <tbody>
                   <tr>
-                    <td>
-                      {client.visitIncluded
-                        ? "Total fees (visit included)"
-                        : "Total fees"}
-                    </td>
+                    <td>Total fees</td>
                     <td className="inv-col-amt">
                       ₹{formatINR(client.feeAmount)}
                     </td>
@@ -293,14 +384,6 @@ export function InvoicePrintPage() {
                       </td>
                     </tr>
                   ))}
-                  {!client.visitIncluded && (client.visitFee || 0) > 0 && (
-                    <tr>
-                      <td>Visit fee</td>
-                      <td className="inv-col-amt">
-                        ₹{formatINR(client.visitFee)}
-                      </td>
-                    </tr>
-                  )}
                   <tr>
                     <td>Received</td>
                     <td className="inv-col-amt">
@@ -315,73 +398,12 @@ export function InvoicePrintPage() {
               </div>
             </section>
 
-            {(advanceRows.length > 0 || paymentRows.length > 0) && (
-              <section className="inv-section">
-                <div className="inv-section-head">
-                  <span>{planSectionTitle(client.paymentPlan)}</span>
-                </div>
-                <table className="inv-table">
-                  <thead>
-                    <tr>
-                      <th className="inv-col-no">No.</th>
-                      <th className="inv-col-part">Particulars</th>
-                      <th className="inv-col-num">Due date</th>
-                      <th className="inv-col-amt">Amount</th>
-                      <th className="inv-col-status">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {advanceRows.map((row, i) => (
-                      <tr key={row.id}>
-                        <td className="inv-col-no">{i + 1}</td>
-                        <td className="inv-col-part">{row.label}</td>
-                        <td className="inv-col-num">
-                          {formatDisplayDate(row.dueDate)}
-                        </td>
-                        <td className="inv-col-amt">
-                          ₹{formatINR(row.amount)}
-                        </td>
-                        <td className="inv-col-status">
-                          <span
-                            className={
-                              row.paid ? "inv-status inv-status--paid" : "inv-status"
-                            }
-                          >
-                            {row.paid ? "Paid" : "Pending"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {paymentRows.map((row, i) => (
-                      <tr key={row.id}>
-                        <td className="inv-col-no">
-                          {advanceRows.length + i + 1}
-                        </td>
-                        <td className="inv-col-part">
-                          {client.paymentPlan === "one_time"
-                            ? "Full balance payment"
-                            : row.label}
-                        </td>
-                        <td className="inv-col-num">
-                          {formatDisplayDate(row.dueDate)}
-                        </td>
-                        <td className="inv-col-amt">
-                          ₹{formatINR(row.amount)}
-                        </td>
-                        <td className="inv-col-status">
-                          <span
-                            className={
-                              row.paid ? "inv-status inv-status--paid" : "inv-status"
-                            }
-                          >
-                            {row.paid ? "Paid" : "Pending"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
+            {!scheduleOnSecondPage && hasSchedule && (
+              <ScheduleTable
+                client={client}
+                advanceRows={advanceRows}
+                paymentRows={paymentRows}
+              />
             )}
 
             <footer className="inv-footer">
@@ -392,6 +414,7 @@ export function InvoicePrintPage() {
                     <li key={t}>{t}</li>
                   ))}
                 </ol>
+                {visitNote && <p className="inv-visit-note">{visitNote}</p>}
               </div>
               <div className="inv-panel inv-sign">
                 <p className="inv-label">Authorised signatory</p>
@@ -399,8 +422,32 @@ export function InvoicePrintPage() {
                 <p className="inv-sign-name">{BRAND.designer}</p>
               </div>
             </footer>
-          </div>
-        </article>
+          </LetterheadShell>
+
+          {scheduleOnSecondPage && (
+            <div className="invoice-page-break">
+              <LetterheadShell>
+                <header className="inv-doc-title">
+                  <span>{planSectionTitle(client.paymentPlan)}</span>
+                  <strong>#{client.invoiceNo}</strong>
+                </header>
+                <p className="inv-page2-meta">
+                  {client.name} · {client.projectName}
+                </p>
+                <ScheduleTable
+                  client={client}
+                  advanceRows={advanceRows}
+                  paymentRows={paymentRows}
+                />
+                {visitNote && (
+                  <p className="inv-visit-note inv-visit-note--page2">
+                    {visitNote}
+                  </p>
+                )}
+              </LetterheadShell>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
