@@ -11,13 +11,22 @@
   padding: 0.75rem 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  align-items: flex-start;
+  gap: 0.4rem;
   min-width: 0;
 }
 
 .stat-card strong {
   word-break: break-word;
   font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.stat-card .badge {
+  align-self: flex-start;
+  width: auto;
+  max-width: 100%;
+  flex: 0 0 auto;
 }
 
 .stat-label {
@@ -186,7 +195,7 @@
 
   .client-header-actions {
     width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.5rem;
     justify-content: stretch;
   }

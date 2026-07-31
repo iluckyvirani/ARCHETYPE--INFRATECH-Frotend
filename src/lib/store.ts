@@ -12,7 +12,7 @@ import { buildSchedulePreview, calcTotals, todayISO } from "./calc";
 import { apiFetch } from "../api";
 
 const USE_API = true;
-const STORAGE_KEY = "artech-bill-store-v3";
+const STORAGE_KEY = "artech-bill-store-v4";
 
 type StoreSnapshot = {
   invoices: Invoice[];
@@ -22,6 +22,27 @@ type StoreSnapshot = {
 
 function uid(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+/** Client / group ID format: A.I-001 … A.I-999, then A.I-1000+ */
+function parseClientGroupNo(groupId: string): number {
+  const m = String(groupId || "").trim().match(/^A\.I-(\d+)$/i);
+  if (!m) return 0;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatClientGroupId(n: number): string {
+  const num = Math.max(1, Math.floor(n));
+  return `A.I-${String(num).padStart(3, "0")}`;
+}
+
+function nextClientGroupId(invoices: Invoice[]): string {
+  const max = invoices.reduce(
+    (m, inv) => Math.max(m, parseClientGroupNo(inv.groupId || "")),
+    0
+  );
+  return formatClientGroupId(max + 1);
 }
 
 function normalizeInvoice(c: Invoice): Invoice {
@@ -57,6 +78,15 @@ function normalizeInvoice(c: Invoice): Invoice {
     workTypeCustom: c.workTypeCustom ?? null,
     visitIncluded: Boolean(c.visitIncluded),
     visitFee: Number(c.visitFee) || 0,
+    floors: Array.isArray(c.floors)
+      ? c.floors
+          .map((f) => ({
+            label: String(f.label || "").trim(),
+            areaSqft: Number(f.areaSqft) || 0,
+            costPerSqft: Number(f.costPerSqft) || 0,
+          }))
+          .filter((f) => f.label && f.areaSqft > 0)
+      : [],
   };
 }
 
@@ -140,6 +170,13 @@ function buildInvoice(
     feeMode: payload.feeMode,
     areaSqft: payload.areaSqft ?? null,
     costPerSqft: payload.costPerSqft ?? null,
+    floors: (payload.floors || [])
+      .map((f) => ({
+        label: String(f.label || "").trim(),
+        areaSqft: Number(f.areaSqft) || 0,
+        costPerSqft: Number(f.costPerSqft) || 0,
+      }))
+      .filter((f) => f.label && f.areaSqft > 0 && f.costPerSqft > 0),
     feePercent: payload.feePercent ?? null,
     projectCost: totals.projectCost,
     feeAmount: totals.feeAmount,
@@ -261,6 +298,7 @@ function toListItems(invoices: Invoice[]): ClientListItem[] {
     const oldest = rows[rows.length - 1];
     const groupIds = [...bucket.groupIds];
     const preferred =
+      groupIds.find((g) => /^A\.I-\d+$/i.test(g)) ||
       groupIds.find((g) => g.startsWith("grp_")) ||
       oldest.groupId ||
       oldest.id ||
@@ -276,6 +314,7 @@ function toListItems(invoices: Invoice[]): ClientListItem[] {
       totalBill: rows.reduce((s, r) => s + r.totalBill, 0),
       balance: rows.reduce((s, r) => s + r.balance, 0),
       latestInvoiceNo: latest.invoiceNo,
+      invoiceNos: rows.map((r) => r.invoiceNo).filter(Boolean),
       createdAt: oldest.createdAt,
       completed: rows.every((r) => Boolean(r.completed)),
     });
@@ -569,7 +608,7 @@ export async function getClient(id: string): Promise<{
 
 export async function createClient(payload: ClientPayload): Promise<Client> {
   const data = loadLocal();
-  const groupId = uid("grp");
+  const groupId = nextClientGroupId(data.invoices);
   const created = buildInvoice(payload, data.invoices, groupId);
   const localInvoiceId = created.invoice.id;
 
@@ -722,6 +761,104 @@ export async function updateClientProfile(
       /* local already updated */
     }
   }
+}
+
+export async function updateInvoice(
+  invoiceId: string,
+  payload: ClientPayload & { syncClientInfo?: boolean }
+): Promise<Invoice> {
+  const data = loadLocal();
+  const current = data.invoices.map(normalizeInvoice).find((i) => i.id === invoiceId);
+  if (!current) throw new Error("Invoice not found");
+  if (current.completed) throw new Error("Completed invoices cannot be edited");
+
+  const totals = calcTotals({
+    feeMode: payload.feeMode,
+    areaSqft: payload.areaSqft,
+    costPerSqft: payload.costPerSqft,
+    feePercent: payload.feePercent,
+    fixedAmount: payload.fixedAmount,
+    advanceAmount: payload.advanceAmount,
+    additionalWorks: payload.additionalWorks,
+    visitIncluded: payload.visitIncluded,
+    visitFee: payload.visitFee,
+  });
+
+  const name = payload.name.trim();
+  const location = payload.location.trim();
+  const advance = Number(payload.advanceAmount) || 0;
+  const updated: Invoice = {
+    ...current,
+    name,
+    location,
+    projectName: payload.projectName.trim(),
+    workTypes: [...(payload.workTypes || [])],
+    workTypeCustom: (payload.workTypeCustom || "").trim() || null,
+    feeMode: payload.feeMode,
+    areaSqft: payload.areaSqft ?? null,
+    costPerSqft: payload.costPerSqft ?? null,
+    floors: (payload.floors || [])
+      .map((f) => ({
+        label: String(f.label || "").trim(),
+        areaSqft: Number(f.areaSqft) || 0,
+        costPerSqft: Number(f.costPerSqft) || 0,
+      }))
+      .filter((f) => f.label && f.areaSqft > 0 && f.costPerSqft > 0),
+    feePercent: payload.feePercent ?? null,
+    fixedAmount: payload.fixedAmount ?? null,
+    additionalWorks: (payload.additionalWorks || [])
+      .filter((w) => w.name?.trim() && (Number(w.qty) > 0 || Number(w.rate) > 0))
+      .map((w) => ({ ...w })),
+    additionalTotal: totals.additionalTotal,
+    visitIncluded: payload.visitIncluded !== false,
+    visitFee: totals.visitFee,
+    projectCost: totals.projectCost,
+    feeAmount: totals.feeAmount,
+    totalBill: totals.totalBill,
+    advanceAmount: advance,
+    advanceDate: advance > 0 ? payload.advanceDate || null : null,
+    balance: totals.balance,
+  };
+
+  const syncClient = payload.syncClientInfo !== false;
+  data.invoices = data.invoices.map((inv) => {
+    if (inv.id === invoiceId) return updated;
+    if (
+      syncClient &&
+      ((inv.groupId || inv.id) === (current.groupId || current.id) ||
+        inv.id === current.groupId)
+    ) {
+      return { ...inv, name, location };
+    }
+    return inv;
+  });
+
+  if (advance > 0) {
+    data.schedule = data.schedule.map((s) =>
+      s.invoiceId === invoiceId && s.kind === "advance"
+        ? {
+            ...s,
+            amount: advance,
+            dueDate: payload.advanceDate || s.dueDate,
+          }
+        : s
+    );
+  }
+  saveLocal(data);
+
+  if (USE_API) {
+    try {
+      const remote = await apiFetch<Invoice>(`/api/clients/invoice/${invoiceId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...payload, syncClientInfo: syncClient }),
+      });
+      return normalizeInvoice(remote);
+    } catch {
+      /* local already updated */
+    }
+  }
+
+  return updated;
 }
 
 /** Mark customer complete: settle all dues, clear balance */

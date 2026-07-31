@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { FormSkeleton } from "../components/Skeleton";
 import { WorkTypeSelect } from "../components/WorkTypeSelect";
 import {
@@ -48,6 +48,8 @@ const emptyFloor = (n: number): FloorRow => ({
 
 export function CreateInvoicePage() {
   const { id: groupId } = useParams();
+  const [search] = useSearchParams();
+  const copyFromId = search.get("copyFrom");
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -79,6 +81,7 @@ export function CreateInvoicePage() {
   const [stages, setStages] = useState<StageInput[]>([emptyStage()]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copiedFromNo, setCopiedFromNo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!groupId) return;
@@ -88,44 +91,71 @@ export function CreateInvoicePage() {
         setLoading(false);
         return;
       }
-      const last = data.invoices[0];
-      setName(last.name);
-      setLocation(last.location);
-      setProjectName(last.projectName);
-      setWorkTypes([...(last.workTypes || [])]);
-      setWorkTypeCustom(last.workTypeCustom || "");
-      setWorkTypeCustomEnabled(Boolean(last.workTypeCustom));
-      setFeeMode(last.feeMode);
-      setAreaMode("total");
-      setFloors([emptyFloor(1)]);
-      setAreaSqft(last.areaSqft != null ? String(last.areaSqft) : "");
-      setCostPerSqft(last.costPerSqft != null ? String(last.costPerSqft) : "");
-      setFeePercent(last.feePercent != null ? String(last.feePercent) : "7");
-      setFixedAmount(last.fixedAmount != null ? String(last.fixedAmount) : "");
-      setAdditionalWorks(
-        (last.additionalWorks || []).map((w) => ({ ...w }))
+      const source =
+        (copyFromId
+          ? data.invoices.find((inv) => inv.id === copyFromId)
+          : null) || data.invoices[0];
+      setCopiedFromNo(source.invoiceNo);
+      setName(source.name);
+      setLocation(source.location);
+      setProjectName(source.projectName);
+      setWorkTypes([...(source.workTypes || [])]);
+      setWorkTypeCustom(source.workTypeCustom || "");
+      setWorkTypeCustomEnabled(Boolean(source.workTypeCustom));
+      setFeeMode(source.feeMode);
+      if ((source.floors || []).length > 0) {
+        setAreaMode("floors");
+        setFloors(
+          source.floors.map((f, i) => ({
+            label: f.label || `Floor ${i + 1}`,
+            area: String(f.areaSqft || ""),
+            cost: String(f.costPerSqft || ""),
+          }))
+        );
+      } else {
+        setAreaMode("total");
+        setFloors([emptyFloor(1)]);
+      }
+      setAreaSqft(source.areaSqft != null ? String(source.areaSqft) : "");
+      setCostPerSqft(
+        source.costPerSqft != null ? String(source.costPerSqft) : ""
       );
-      setVisitIncluded(last.visitIncluded !== false);
+      setFeePercent(
+        source.feePercent != null ? String(source.feePercent) : "7"
+      );
+      setFixedAmount(
+        source.fixedAmount != null ? String(source.fixedAmount) : ""
+      );
+      setAdditionalWorks(
+        (source.additionalWorks || []).map((w) => ({ ...w }))
+      );
+      setVisitIncluded(source.visitIncluded !== false);
       setVisitFee(
-        last.visitIncluded ? "" : last.visitFee ? String(last.visitFee) : ""
+        source.visitIncluded
+          ? ""
+          : source.visitFee
+            ? String(source.visitFee)
+            : ""
       );
       setAdvanceAmount("0");
       setAdvanceDate(todayISO());
       setPaymentPlan(
-        last.paymentPlan === "none" ? "one_time" : last.paymentPlan
+        source.paymentPlan === "none" ? "one_time" : source.paymentPlan
       );
-      setInstallmentMode(last.installmentMode || "by_months");
+      setInstallmentMode(source.installmentMode || "by_months");
       setInstallmentMonths(
-        last.installmentMonths != null ? String(last.installmentMonths) : "6"
+        source.installmentMonths != null
+          ? String(source.installmentMonths)
+          : "6"
       );
       setInstallmentCount(
-        last.installmentCount != null ? String(last.installmentCount) : "3"
+        source.installmentCount != null ? String(source.installmentCount) : "3"
       );
       setInstallmentFirstDue(todayISO());
       setOneTimeDueDate(todayISO());
       setLoading(false);
     });
-  }, [groupId]);
+  }, [groupId, copyFromId]);
 
   const floorInputs = floors.map((f) => ({
     areaSqft: Number(f.area) || 0,
@@ -320,7 +350,7 @@ export function CreateInvoicePage() {
 
     setSaving(true);
     try {
-      await createInvoiceForClient(groupId, {
+      const invoice = await createInvoiceForClient(groupId, {
         location,
         projectName,
         workTypes,
@@ -330,6 +360,17 @@ export function CreateInvoicePage() {
         feeMode,
         areaSqft: effectiveArea || null,
         costPerSqft: effectiveRate || null,
+        floors:
+          (feeMode === "area_sqft" || feeMode === "percentage") &&
+          areaMode === "floors"
+            ? floors
+                .map((f) => ({
+                  label: f.label.trim(),
+                  areaSqft: Number(f.area) || 0,
+                  costPerSqft: Number(f.cost) || 0,
+                }))
+                .filter((f) => f.label && f.areaSqft > 0 && f.costPerSqft > 0)
+            : [],
         feePercent: Number(feePercent) || null,
         fixedAmount: Number(fixedAmount) || null,
         additionalWorks: additionalWorks.filter(
@@ -356,7 +397,7 @@ export function CreateInvoicePage() {
         oneTimeDueDate: effectivePlan === "one_time" ? oneTimeDueDate : null,
         stages: effectivePlan === "stage" ? stages : [],
       });
-      navigate(`/clients/${groupId}`);
+      navigate(`/clients/${encodeURIComponent(invoice.id)}/print`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save invoice");
     } finally {
@@ -373,7 +414,11 @@ export function CreateInvoicePage() {
       <header className="page-header">
         <div>
           <h1>New invoice</h1>
-          <p>Pre-filled from last invoice — client name is locked</p>
+          <p>
+            {copiedFromNo
+              ? `Copied from invoice #${copiedFromNo} — edit and save as a new invoice`
+              : "Pre-filled from last invoice — client name is locked"}
+          </p>
         </div>
         <Link to={`/clients/${groupId}`} className="btn btn-ghost">
           Cancel

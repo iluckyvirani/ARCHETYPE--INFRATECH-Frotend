@@ -7,6 +7,7 @@ export type ScheduleKind = "advance" | "one_time" | "installment" | "stage";
 export type FloorArea = {
   label: string;
   areaSqft: number;
+  costPerSqft: number;
 };
 
 export type StageInput = {
@@ -46,6 +47,8 @@ export type Invoice = {
   feeMode: FeeMode;
   areaSqft: number | null;
   costPerSqft: number | null;
+  /** Per-floor breakdown when fee was entered floor-by-area */
+  floors: FloorArea[];
   feePercent: number | null;
   projectCost: number;
   feeAmount: number;
@@ -82,6 +85,8 @@ export type ClientListItem = {
   totalBill: number;
   balance: number;
   latestInvoiceNo: string;
+  /** All invoice numbers for this client (search) */
+  invoiceNos?: string[];
   createdAt: string;
   completed?: boolean;
 };
@@ -116,6 +121,7 @@ export type ClientPayload = {
   feeMode: FeeMode;
   areaSqft?: number | null;
   costPerSqft?: number | null;
+  floors?: FloorArea[];
   feePercent?: number | null;
   fixedAmount?: number | null;
   additionalWorks?: AdditionalWork[];

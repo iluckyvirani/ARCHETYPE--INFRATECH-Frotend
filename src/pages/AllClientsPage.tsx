@@ -1,4 +1,4 @@
-import { CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { CheckCircle2, Pencil, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
@@ -14,11 +14,30 @@ import type { ClientListItem } from "../lib/types";
 
 type StatusFilter = "active" | "completed" | "all";
 
+function matchesClientSearch(c: ClientListItem, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const invoiceHay =
+    (c.invoiceNos || [c.latestInvoiceNo]).join(" ") + " " + c.latestInvoiceNo;
+  const hay = [
+    c.name,
+    c.location,
+    c.projectName,
+    invoiceHay,
+    c.groupId,
+    ...(c.groupIds || []),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
+}
+
 export function AllClientsPage() {
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("active");
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ClientListItem | null>(null);
   const [deleting, setDeleting] = useState<ClientListItem | null>(null);
   const [completing, setCompleting] = useState<ClientListItem | null>(null);
@@ -45,10 +64,12 @@ export function AllClientsPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (filter === "completed") return clients.filter((c) => c.completed);
-    if (filter === "active") return clients.filter((c) => !c.completed);
-    return clients;
-  }, [clients, filter]);
+    let rows = clients;
+    if (filter === "completed") rows = rows.filter((c) => c.completed);
+    else if (filter === "active") rows = rows.filter((c) => !c.completed);
+    if (search.trim()) rows = rows.filter((c) => matchesClientSearch(c, search));
+    return rows;
+  }, [clients, filter, search]);
 
   function openEdit(c: ClientListItem, e: React.MouseEvent) {
     e.preventDefault();
@@ -120,6 +141,10 @@ export function AllClientsPage() {
     }
   }
 
+  const emptyFilterMessage = search.trim()
+    ? "No clients match your search."
+    : `No ${filter === "completed" ? "completed" : "active"} clients.`;
+
   return (
     <>
       <header className="page-header">
@@ -129,28 +154,52 @@ export function AllClientsPage() {
         </div>
       </header>
 
-      <div
-        className="segmented"
-        role="tablist"
-        aria-label="Client status"
-        style={{ marginBottom: "1rem" }}
-      >
-        {(
-          [
-            ["active", "Not complete"],
-            ["completed", "Complete"],
-            ["all", "All"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={filter === value ? "active" : ""}
-            onClick={() => setFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="clients-filters">
+        <label className="clients-search" aria-label="Search clients">
+          <Search
+            size={18}
+            strokeWidth={2.25}
+            aria-hidden
+            className="clients-search__icon"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search invoice, name, location, project…"
+            autoComplete="off"
+            enterKeyHint="search"
+          />
+          {search.trim() ? (
+            <button
+              type="button"
+              className="clients-search__clear"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X size={16} strokeWidth={2.5} aria-hidden />
+            </button>
+          ) : null}
+        </label>
+
+        <div className="segmented" role="tablist" aria-label="Client status">
+          {(
+            [
+              ["active", "Not complete"],
+              ["completed", "Complete"],
+              ["all", "All"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={filter === value ? "active" : ""}
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading && <ClientsSkeleton count={4} />}
@@ -169,9 +218,7 @@ export function AllClientsPage() {
 
       {!loading && clients.length > 0 && filtered.length === 0 && (
         <section className="panel">
-          <div className="empty">
-            No {filter === "completed" ? "completed" : "active"} clients.
-          </div>
+          <div className="empty">{emptyFilterMessage}</div>
         </section>
       )}
 
@@ -183,7 +230,10 @@ export function AllClientsPage() {
                 key={c.groupIds?.join("-") || c.groupId}
                 className="list-item client-card"
               >
-                <Link to={`/clients/${c.groupId}`} className="client-card-main">
+                <Link
+                  to={`/clients/${encodeURIComponent(c.groupId)}`}
+                  className="client-card-main"
+                >
                   <div>
                     <h3>
                       {c.name}
@@ -291,7 +341,11 @@ export function AllClientsPage() {
               >
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+              >
                 {saving ? "Saving…" : "Save"}
               </button>
             </div>

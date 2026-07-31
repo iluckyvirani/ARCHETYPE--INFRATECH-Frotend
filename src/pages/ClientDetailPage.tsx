@@ -11,10 +11,8 @@ import {
 } from "../lib/calc";
 import {
   completeClientGroup,
-  deleteClientGroup,
   getClientGroup,
   markSchedulePaid,
-  updateClientProfile,
 } from "../lib/store";
 import { formatWorkTypes } from "../lib/workTypes";
 import type { Invoice, ScheduleItem } from "../lib/types";
@@ -38,13 +36,7 @@ export function ClientDetailPage() {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmComplete, setConfirmComplete] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [settling, setSettling] = useState(false);
 
   async function refresh() {
@@ -173,43 +165,6 @@ export function ClientDetailPage() {
     await refresh();
   }
 
-  function openEdit() {
-    setEditName(name);
-    setEditLocation(location);
-    setEditing(true);
-  }
-
-  async function onSaveEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!groupId) return;
-    setSaving(true);
-    try {
-      await updateClientProfile(groupId, {
-        name: editName,
-        location: editLocation,
-      });
-      setEditing(false);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function onConfirmDelete() {
-    if (!groupId) return;
-    setRemoving(true);
-    try {
-      await deleteClientGroup(groupId);
-      navigate("/clients");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
-      setRemoving(false);
-      setConfirmDelete(false);
-    }
-  }
-
   async function onConfirmComplete() {
     if (!groupId) return;
     setSettling(true);
@@ -282,102 +237,8 @@ export function ClientDetailPage() {
               Complete
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => navigate(`/clients/${groupId}/invoice/new`)}
-            disabled={isCompleted}
-          >
-            + Invoice
-          </button>
-          <button type="button" className="btn btn-dark" onClick={openEdit}>
-            Edit
-          </button>
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={() => setConfirmDelete(true)}
-          >
-            Delete
-          </button>
-          <Link
-            to={`/clients/${latest.id}/print`}
-            className="btn btn-ghost"
-          >
-            Print
-          </Link>
-          {Number(latest.advanceAmount) > 0 && (
-            <Link
-              to={`/clients/${latest.id}/print/advance-demand`}
-              className="btn btn-ghost"
-            >
-              Adv slip
-            </Link>
-          )}
         </div>
       </header>
-
-      {editing && (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={() => setEditing(false)}
-        >
-          <form
-            className="modal-card panel"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={onSaveEdit}
-          >
-            <h2 style={{ margin: "0 0 0.75rem", color: "#0b1f14" }}>
-              Edit client
-            </h2>
-            <p className="meta" style={{ marginBottom: "1rem" }}>
-              Only name and location can be changed
-            </p>
-            <div className="form-grid">
-              <label className="field">
-                Client name
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </label>
-              <label className="field">
-                Location
-                <input
-                  value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className="row-actions" style={{ marginTop: "1.25rem" }}>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ color: "#0b1f14", borderColor: "#0b1f14" }}
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {confirmDelete && (
-        <ConfirmDeleteModal
-          message={`Delete "${name}" and all invoices? This cannot be undone.`}
-          confirming={removing}
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={onConfirmDelete}
-        />
-      )}
 
       {confirmComplete && (
         <ConfirmDeleteModal
@@ -395,11 +256,13 @@ export function ClientDetailPage() {
       <div className="stat-row">
         <div className="stat-card">
           <span className="stat-label">Client ID</span>
-          <strong>{groupId.slice(0, 12).toUpperCase()}</strong>
+          <strong>{groupId}</strong>
         </div>
         <div className="stat-card">
           <span className="stat-label">Status</span>
-          <span className="badge ok">Active</span>
+          <span className="badge ok">
+            {isCompleted ? "Complete" : "Active"}
+          </span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Invoices</span>
@@ -472,9 +335,9 @@ export function ClientDetailPage() {
               <button
                 type="button"
                 className="btn btn-dark"
-                onClick={() => navigate(`/clients/${groupId}/invoice/new`)}
+                onClick={() => setTab("sales")}
               >
-                + Create invoice
+                Invoices
               </button>
             </div>
           </section>
@@ -498,8 +361,8 @@ export function ClientDetailPage() {
                     <span>₹{formatINR(totals.outstanding)}</span>
                   </li>
                   <li style={{ borderBottom: "none", color: "#64748b", fontSize: "0.85rem" }}>
-                    No installment plan on this invoice — use + Invoice with a
-                    payment plan, or collect from Alerts / Ledger.
+                    No installment plan on this invoice — open Sales History to
+                    copy an invoice with a payment plan.
                   </li>
                 </ul>
               ) : (
@@ -716,13 +579,9 @@ export function ClientDetailPage() {
         <section className="panel">
           <div className="panel-head">
             <h2 className="panel-title">Sales history</h2>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => navigate(`/clients/${groupId}/invoice/new`)}
-            >
-              + Create invoice
-            </button>
+            <p className="meta" style={{ margin: 0 }}>
+              Print a bill per invoice, or copy one to create a new invoice
+            </p>
           </div>
           <div className="table-wrap">
             <table className="data">
@@ -761,21 +620,33 @@ export function ClientDetailPage() {
                       </span>
                     </td>
                     <td data-label="Action">
-                      <div className="row-actions">
+                      <div className="invoice-actions">
                         <Link
                           to={`/clients/${inv.id}/print`}
                           className="btn btn-dark"
                         >
-                          Invoice
+                          Print bill
                         </Link>
-                        {Number(inv.advanceAmount) > 0 && (
-                          <Link
-                            to={`/clients/${inv.id}/print/advance-demand`}
-                            className="btn btn-ghost"
-                            style={{ color: "#0b1f14", borderColor: "#0b1f14" }}
-                          >
-                            Adv slip
-                          </Link>
+                        {!isCompleted && (
+                          <>
+                            <Link
+                              to={`/clients/${groupId}/invoice/${inv.id}/edit`}
+                              className="btn btn-ghost invoice-actions__edit"
+                            >
+                              Edit
+                            </Link>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() =>
+                                navigate(
+                                  `/clients/${groupId}/invoice/new?copyFrom=${inv.id}`
+                                )
+                              }
+                            >
+                              Copy as new
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -858,10 +729,10 @@ function TxnTable({
                         className="btn btn-ghost"
                         style={{ color: "#0b1f14", borderColor: "#0b1f14" }}
                       >
-                        Adv slip
+                        Print adv
                       </Link>
                     )}
-                    {emiSlip && row.paid && (
+                    {emiSlip && (
                       <Link
                         to={emiSlip}
                         className="btn btn-ghost"

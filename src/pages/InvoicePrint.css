@@ -1,4 +1,75 @@
-/* Premium letterhead invoice — clean type, soft panels, quiet tables */
+/* Invoice on letterhead — clean type, soft panels, quiet tables */
+
+.print-loading {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem 1.25rem;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at top, rgba(201, 162, 39, 0.14), transparent 55%),
+    linear-gradient(180deg, #0b1f14 0%, #0f2a1c 55%, #08160f 100%);
+  box-sizing: border-box;
+}
+
+.print-loading__logo {
+  width: min(42vw, 160px);
+  height: auto;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+}
+
+.print-loading__spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(232, 212, 139, 0.22);
+  border-top-color: #c9a227;
+  animation: print-spin 0.8s linear infinite;
+}
+
+.print-loading__title {
+  margin: 0.35rem 0 0;
+  color: #f7f3e8;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+
+.print-loading__text {
+  margin: 0;
+  color: rgba(247, 243, 232, 0.62);
+  font-size: 0.92rem;
+  max-width: 16rem;
+  line-height: 1.4;
+}
+
+.print-loading__btn {
+  margin-top: 1rem;
+  text-decoration: none;
+}
+
+.print-loading--error .print-loading__title {
+  color: #f0b4b4;
+}
+
+@keyframes print-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .print-loading__spinner {
+    animation: none;
+    border-top-color: #c9a227;
+    opacity: 0.85;
+  }
+}
 
 .invoice-wrap {
   min-height: 100vh;
@@ -388,6 +459,32 @@
   margin-bottom: 0.05rem;
 }
 
+.inv-terms--full {
+  margin-top: 0;
+  border-radius: 0 0 4px 4px;
+  border-left: none;
+  max-height: none;
+}
+
+.inv-terms--full ol {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--inv-ink);
+}
+
+.inv-terms--full li {
+  margin-bottom: 0.28rem;
+}
+
+.inv-terms-page {
+  margin-top: 0.35rem;
+}
+
+.inv-terms--brief .meta {
+  font-size: 0.68rem;
+  color: var(--inv-muted);
+}
+
 .inv-sign {
   text-align: right;
   display: flex;
@@ -450,6 +547,11 @@
 }
 
 @media print {
+  .print-loading,
+  .no-print {
+    display: none !important;
+  }
+
   @page {
     size: A4 portrait;
     margin: 0 !important;

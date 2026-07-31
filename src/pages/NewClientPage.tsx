@@ -301,6 +301,17 @@ export function NewClientPage() {
         feeMode,
         areaSqft: effectiveArea || null,
         costPerSqft: effectiveRate || null,
+        floors:
+          (feeMode === "area_sqft" || feeMode === "percentage") &&
+          areaMode === "floors"
+            ? floors
+                .map((f) => ({
+                  label: f.label.trim(),
+                  areaSqft: Number(f.area) || 0,
+                  costPerSqft: Number(f.cost) || 0,
+                }))
+                .filter((f) => f.label && f.areaSqft > 0 && f.costPerSqft > 0)
+            : [],
         feePercent: Number(feePercent) || null,
         fixedAmount: Number(fixedAmount) || null,
         additionalWorks: additionalWorks.filter(
@@ -328,7 +339,7 @@ export function NewClientPage() {
           effectivePlan === "one_time" ? oneTimeDueDate : null,
         stages: effectivePlan === "stage" ? stages : [],
       });
-      navigate(`/clients/${client.groupId || client.id}`);
+      navigate(`/clients/${encodeURIComponent(client.id)}/print`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save client");
     } finally {

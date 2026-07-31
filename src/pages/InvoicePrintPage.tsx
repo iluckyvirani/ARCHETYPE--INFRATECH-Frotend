@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { BRAND } from "../lib/brand";
 import { formatDisplayDate, formatINR } from "../lib/calc";
 import { getClient } from "../lib/store";
 import type { Client, ScheduleItem } from "../lib/types";
+import { formatWorkTypes } from "../lib/workTypes";
+import {
+  billPrintKindFromRoute,
+  buildBillFileName,
+  printBillAsPdf,
+  setBillDocumentTitle,
+} from "../lib/printBill";
 import { PdfAdvancePaymentDemand } from "../print/PdfAdvancePaymentDemand";
 import { PdfPaymentDemandNote } from "../print/PdfPaymentDemandNote";
 import "../print/print.css";
@@ -109,7 +116,6 @@ function ScheduleTable({
 export function InvoicePrintPage() {
   const { id, type: typeParam } = useParams();
   const [search] = useSearchParams();
-  const navigate = useNavigate();
   const printType = resolveType(typeParam);
   const scheduleId = search.get("scheduleId");
 
@@ -128,17 +134,37 @@ export function InvoicePrintPage() {
     });
   }, [id]);
 
-  useEffect(() => {
-    if (!client) return;
-    if (search.get("autoprint") !== "1") return;
-    const t = window.setTimeout(() => window.print(), 500);
-    return () => window.clearTimeout(t);
-  }, [client, search, printType]);
-
   const scheduleRow = useMemo(() => {
     if (!scheduleId) return null;
     return schedule.find((s) => s.id === scheduleId) || null;
   }, [schedule, scheduleId]);
+
+  const billFileBase = useMemo(() => {
+    if (!client) return "bill";
+    const kind = billPrintKindFromRoute(printType);
+    const date =
+      (scheduleRow?.dueDate && kind !== "invoice"
+        ? scheduleRow.dueDate
+        : null) || client.createdAt.slice(0, 10);
+    return buildBillFileName({
+      clientName: client.name,
+      date,
+      kind,
+      invoiceNo: client.invoiceNo,
+    });
+  }, [client, printType, scheduleRow]);
+
+  useEffect(() => {
+    if (!client || billFileBase === "bill") return;
+    return setBillDocumentTitle(billFileBase);
+  }, [client, billFileBase]);
+
+  useEffect(() => {
+    if (!client) return;
+    if (search.get("autoprint") !== "1") return;
+    const t = window.setTimeout(() => printBillAsPdf(billFileBase), 700);
+    return () => window.clearTimeout(t);
+  }, [client, search, billFileBase]);
 
   const paymentRows = useMemo(
     () =>
@@ -153,20 +179,53 @@ export function InvoicePrintPage() {
     [schedule]
   );
 
-  if (error || !client) {
+  if (error) {
     return (
-      <div className="invoice-page invoice-page--plain">
-        <p>{error || "Loading…"}</p>
-        <Link to="/clients">Back</Link>
+      <div className="print-loading print-loading--error">
+        <img src="/logo.png" alt="" className="print-loading__logo" />
+        <p className="print-loading__title">Couldn’t open bill</p>
+        <p className="print-loading__text">{error}</p>
+        <Link to="/clients" className="btn btn-primary print-loading__btn">
+          Back to clients
+        </Link>
       </div>
     );
   }
 
+  if (!client) {
+    return (
+      <div className="print-loading" aria-busy="true" aria-label="Loading bill">
+        <img src="/logo.png" alt="" className="print-loading__logo" />
+        <div className="print-loading__spinner" aria-hidden />
+        <p className="print-loading__title">Preparing bill</p>
+        <p className="print-loading__text">Loading invoice preview…</p>
+        <Link to="/clients" className="btn btn-ghost print-loading__btn">
+          ← Back
+        </Link>
+      </div>
+    );
+  }
+
+  const invoiceDay = client.createdAt.slice(0, 10);
+  const advanceDay = client.advanceDate
+    ? String(client.advanceDate).slice(0, 10)
+    : null;
+  const advanceAmt = Number(client.advanceAmount) || 0;
+  const advanceIsFuture =
+    advanceAmt > 0 && !!advanceDay && advanceDay > invoiceDay;
+  const advanceLabel =
+    advanceAmt > 0
+      ? advanceIsFuture
+        ? `Advance to be paid (${formatDisplayDate(advanceDay!)})`
+        : "Advance Received"
+      : null;
+
+  const paidInstallments = schedule
+    .filter((s) => s.kind !== "advance" && s.paid)
+    .reduce((s, r) => s + r.amount, 0);
+  // Future advance is not counted as received yet
   const receivedAmount =
-    client.advanceAmount +
-    schedule
-      .filter((s) => s.kind !== "advance" && s.paid)
-      .reduce((s, r) => s + r.amount, 0);
+    (advanceIsFuture ? 0 : advanceAmt) + paidInstallments;
 
   const additionalTotal = (client.additionalWorks || []).reduce(
     (s, w) => s + w.qty * w.rate,
@@ -208,13 +267,12 @@ export function InvoicePrintPage() {
           <span>{slipTitle}</span>
         </div>
         <div className="print-toolbar__actions">
-          <button
-            type="button"
+          <Link
+            to={`/clients/${client.groupId || client.id}`}
             className="print-btn print-btn--ghost"
-            onClick={() => navigate(-1)}
           >
             ← Back
-          </button>
+          </Link>
           {hasAdvanceSlip && (
             <Link
               to={`/clients/${client.id}/print/advance-demand`}
@@ -234,15 +292,18 @@ export function InvoicePrintPage() {
           <button
             type="button"
             className="print-btn print-btn--primary"
-            onClick={() => window.print()}
+            onClick={() => printBillAsPdf(billFileBase)}
           >
             Print / Save PDF
           </button>
         </div>
       </div>
       <p className="print-hint no-print">
-        Letterhead background — set Margins to <strong>None</strong> and enable
-        background graphics.
+        PDF file name: <strong>{billFileBase}.pdf</strong>
+        <br />
+        Print → Destination <strong>Save as PDF</strong> · Paper size{" "}
+        <strong>A4</strong> · Margins <strong>None</strong> · enable background
+        graphics.
       </p>
 
       {printType === "advance-demand" && (
@@ -275,12 +336,18 @@ export function InvoicePrintPage() {
                 <p className="inv-client-name">{client.name}</p>
                 <div className="inv-fields">
                   <div className="inv-field">
+                    <span>Address</span>
+                    <strong>{client.location}</strong>
+                  </div>
+                  <div className="inv-field">
                     <span>Project</span>
                     <strong>{client.projectName}</strong>
                   </div>
                   <div className="inv-field">
-                    <span>Address</span>
-                    <strong>{client.location}</strong>
+                    <span>Working</span>
+                    <strong>
+                      {formatWorkTypes(client.workTypes, client.workTypeCustom)}
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -312,9 +379,7 @@ export function InvoicePrintPage() {
                   </div>
                   <div className="inv-field">
                     <span>IFSC</span>
-                    <strong>
-                      {BRAND.bank.ifsc.replace(/\s*\(.*\)\s*$/, "").trim()}
-                    </strong>
+                    <strong>{BRAND.bank.ifsc}</strong>
                   </div>
                   <div className="inv-field">
                     <span>MSME</span>
@@ -328,9 +393,10 @@ export function InvoicePrintPage() {
               <section className="inv-section">
                 <div className="inv-section-head">
                   <span>Project fees</span>
-                  {client.costPerSqft != null && (
-                    <em>₹{formatINR(client.costPerSqft)} / sqft</em>
-                  )}
+                  {(client.floors || []).length === 0 &&
+                    client.costPerSqft != null && (
+                      <em>₹{formatINR(client.costPerSqft)} / sqft</em>
+                    )}
                 </div>
                 <table className="inv-table">
                   <thead>
@@ -343,22 +409,64 @@ export function InvoicePrintPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td className="inv-col-no">1</td>
-                      <td className="inv-col-part">
-                        <strong>Project area</strong>
-                        <span>{client.projectName}</span>
-                      </td>
-                      <td className="inv-col-num">{client.areaSqft ?? "—"}</td>
-                      <td className="inv-col-num">
-                        {client.costPerSqft != null
-                          ? formatINR(client.costPerSqft)
-                          : "—"}
-                      </td>
-                      <td className="inv-col-amt">
-                        ₹{formatINR(client.projectCost)}
-                      </td>
-                    </tr>
+                    {(client.floors || []).length > 0 ? (
+                      <>
+                        {client.floors.map((floor, i) => {
+                          const line =
+                            Math.round(
+                              floor.areaSqft * floor.costPerSqft * 100
+                            ) / 100;
+                          return (
+                            <tr key={`${floor.label}-${i}`}>
+                              <td className="inv-col-no">{i + 1}</td>
+                              <td className="inv-col-part">
+                                <strong>{floor.label}</strong>
+                                <span>{client.projectName}</span>
+                              </td>
+                              <td className="inv-col-num">{floor.areaSqft}</td>
+                              <td className="inv-col-num">
+                                {formatINR(floor.costPerSqft)}
+                              </td>
+                              <td className="inv-col-amt">
+                                ₹{formatINR(line)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr>
+                          <td className="inv-col-no" />
+                          <td className="inv-col-part">
+                            <strong>Total project area</strong>
+                          </td>
+                          <td className="inv-col-num">
+                            {client.areaSqft ?? "—"}
+                          </td>
+                          <td className="inv-col-num">—</td>
+                          <td className="inv-col-amt">
+                            ₹{formatINR(client.projectCost)}
+                          </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td className="inv-col-no">1</td>
+                        <td className="inv-col-part">
+                          <strong>Project area</strong>
+                          <span>{client.projectName}</span>
+                        </td>
+                        <td className="inv-col-num">
+                          {client.areaSqft ?? "—"}
+                        </td>
+                        <td className="inv-col-num">
+                          {client.costPerSqft != null
+                            ? formatINR(client.costPerSqft)
+                            : "—"}
+                        </td>
+                        <td className="inv-col-amt">
+                          ₹{formatINR(client.projectCost)}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </section>
@@ -384,12 +492,22 @@ export function InvoicePrintPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr>
-                    <td>Received</td>
-                    <td className="inv-col-amt">
-                      ₹{formatINR(receivedAmount)}
-                    </td>
-                  </tr>
+                  {advanceLabel && (
+                    <tr>
+                      <td>{advanceLabel}</td>
+                      <td className="inv-col-amt">
+                        ₹{formatINR(advanceAmt)}
+                      </td>
+                    </tr>
+                  )}
+                  {paidInstallments > 0 && (
+                    <tr>
+                      <td>Received (installments)</td>
+                      <td className="inv-col-amt">
+                        ₹{formatINR(paidInstallments)}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
               <div className="inv-payable">
@@ -407,14 +525,22 @@ export function InvoicePrintPage() {
             )}
 
             <footer className="inv-footer">
-              <div className="inv-panel inv-terms">
-                <p className="inv-label">Terms &amp; conditions</p>
-                <ol>
-                  {BRAND.terms.slice(0, 2).map((t) => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ol>
-                {visitNote && <p className="inv-visit-note">{visitNote}</p>}
+              <div className="inv-panel inv-terms inv-terms--brief">
+                <p className="inv-label">Note</p>
+                {visitNote ? (
+                  <p className="inv-visit-note" style={{ border: "none", margin: 0, padding: 0 }}>
+                    {visitNote}
+                  </p>
+                ) : (
+                  <p className="meta" style={{ margin: 0 }}>
+                    Full terms &amp; conditions on next page.
+                  </p>
+                )}
+                {visitNote && (
+                  <p className="meta" style={{ margin: "0.35rem 0 0" }}>
+                    Full terms &amp; conditions on next page.
+                  </p>
+                )}
               </div>
               <div className="inv-panel inv-sign">
                 <p className="inv-label">Authorised signatory</p>
@@ -424,29 +550,43 @@ export function InvoicePrintPage() {
             </footer>
           </LetterheadShell>
 
-          {scheduleOnSecondPage && (
-            <div className="invoice-page-break">
-              <LetterheadShell>
-                <header className="inv-doc-title">
-                  <span>{planSectionTitle(client.paymentPlan)}</span>
-                  <strong>#{client.invoiceNo}</strong>
-                </header>
-                <p className="inv-page2-meta">
-                  {client.name} · {client.projectName}
-                </p>
+          <div className="invoice-page-break">
+            <LetterheadShell>
+              <header className="inv-doc-title">
+                <span>
+                  {scheduleOnSecondPage
+                    ? planSectionTitle(client.paymentPlan)
+                    : "Terms & conditions"}
+                </span>
+                <strong>#{client.invoiceNo}</strong>
+              </header>
+              <p className="inv-page2-meta">
+                {client.name} · {client.projectName}
+              </p>
+              {scheduleOnSecondPage && (
                 <ScheduleTable
                   client={client}
                   advanceRows={advanceRows}
                   paymentRows={paymentRows}
                 />
-                {visitNote && (
-                  <p className="inv-visit-note inv-visit-note--page2">
-                    {visitNote}
-                  </p>
-                )}
-              </LetterheadShell>
-            </div>
-          )}
+              )}
+              <section className="inv-section inv-terms-page">
+                <div className="inv-section-head">
+                  <span>Terms &amp; conditions</span>
+                </div>
+                <div className="inv-panel inv-terms inv-terms--full">
+                  <ol>
+                    {BRAND.terms.map((t) => (
+                      <li key={t}>{t}</li>
+                    ))}
+                  </ol>
+                  {visitNote && (
+                    <p className="inv-visit-note">{visitNote}</p>
+                  )}
+                </div>
+              </section>
+            </LetterheadShell>
+          </div>
         </>
       )}
     </div>
