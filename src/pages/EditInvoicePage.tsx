@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FormSkeleton } from "../components/Skeleton";
 import { WorkTypeSelect } from "../components/WorkTypeSelect";
