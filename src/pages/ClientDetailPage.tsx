@@ -23,7 +23,8 @@ type Tab =
   | "ledger"
   | "emi"
   | "products"
-  | "sales";
+  | "sales"
+  | "quotations";
 
 export function ClientDetailPage() {
   const { id: groupId } = useParams();
@@ -61,22 +62,31 @@ export function ClientDetailPage() {
     refresh();
   }, [groupId]);
 
+  const saleInvoices = useMemo(
+    () => invoices.filter((i) => i.documentType !== "quotation"),
+    [invoices]
+  );
+  const quotations = useMemo(
+    () => invoices.filter((i) => i.documentType === "quotation"),
+    [invoices]
+  );
+
   const totals = useMemo(() => {
     const today = todayISO();
-    const totalSales = invoices.reduce((s, i) => s + i.totalBill, 0);
+    const totalSales = saleInvoices.reduce((s, i) => s + i.totalBill, 0);
 
     const otherPayments = schedule
       .filter((s) => s.paid && s.kind !== "advance")
       .reduce((s, r) => s + r.amount, 0);
 
     // invoice.balance already = totalBill − advance at create time
-    const openAfterAdvance = invoices.reduce(
+    const openAfterAdvance = saleInvoices.reduce(
       (s, i) => s + (Number(i.balance) || 0),
       0
     );
 
     // Future advance not yet collected: add that advance back into outstanding
-    const futureAdvanceUnpaid = invoices.reduce((sum, inv) => {
+    const futureAdvanceUnpaid = saleInvoices.reduce((sum, inv) => {
       const amt = Number(inv.advanceAmount) || 0;
       if (amt <= 0) return sum;
       const advDay = toDayISO(inv.advanceDate);
@@ -110,7 +120,7 @@ export function ClientDetailPage() {
       pendingEmi,
       emiRows,
     };
-  }, [invoices, schedule]);
+  }, [saleInvoices, schedule]);
 
   const paidTransactions = useMemo(
     () =>
@@ -132,7 +142,7 @@ export function ClientDetailPage() {
       amount: number;
       invoiceNo: string;
     }[] = [];
-    for (const inv of invoices) {
+    for (const inv of saleInvoices) {
       rows.push({
         name: `${inv.projectName} (${inv.feeMode.replace("_", " ")})`,
         qty: 1,
@@ -151,7 +161,7 @@ export function ClientDetailPage() {
       }
     }
     return rows;
-  }, [invoices]);
+  }, [saleInvoices]);
 
   const invoiceById = useMemo(() => {
     const m = new Map<string, Invoice>();
@@ -195,7 +205,7 @@ export function ClientDetailPage() {
     );
   }
 
-  const latest = invoices[0];
+  const latest = saleInvoices[0] || invoices[0];
   const isCompleted = invoices.every((inv) => Boolean(inv.completed));
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -203,6 +213,7 @@ export function ClientDetailPage() {
     { id: "emi", label: "EMI History" },
     { id: "products", label: "Services" },
     { id: "sales", label: "Sales History" },
+    { id: "quotations", label: "All Quotations" },
   ];
 
   return (
@@ -266,7 +277,7 @@ export function ClientDetailPage() {
         </div>
         <div className="stat-card">
           <span className="stat-label">Invoices</span>
-          <strong>{invoices.length}</strong>
+          <strong>{saleInvoices.length}</strong>
         </div>
         <div className="stat-card">
           <span className="stat-label">Member since</span>
@@ -274,7 +285,9 @@ export function ClientDetailPage() {
         </div>
         <div className="stat-card">
           <span className="stat-label">Last sale</span>
-          <strong>#{latest.invoiceNo}</strong>
+          <strong>
+            {saleInvoices[0] ? `#${saleInvoices[0].invoiceNo}` : "—"}
+          </strong>
         </div>
         <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
           <span className="stat-label">Type of working</span>
@@ -599,7 +612,12 @@ export function ClientDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((inv) => (
+                {saleInvoices.length === 0 && (
+                  <tr>
+                    <td colSpan={9}>No invoices yet.</td>
+                  </tr>
+                )}
+                {saleInvoices.map((inv) => (
                   <tr key={inv.id}>
                     <td data-label="Invoice">#{inv.invoiceNo}</td>
                     <td data-label="Date">
@@ -610,7 +628,9 @@ export function ClientDetailPage() {
                       {formatWorkTypes(inv.workTypes, inv.workTypeCustom)}
                     </td>
                     <td data-label="Total">₹{formatINR(inv.totalBill)}</td>
-                    <td data-label="Advance">₹{formatINR(inv.advanceAmount)}</td>
+                    <td data-label="Advance">
+                      ₹{formatINR(inv.advanceAmount)}
+                    </td>
                     <td data-label="Balance">₹{formatINR(inv.balance)}</td>
                     <td data-label="Status">
                       <span
@@ -626,6 +646,82 @@ export function ClientDetailPage() {
                           className="btn btn-dark"
                         >
                           Print bill
+                        </Link>
+                        {!isCompleted && (
+                          <>
+                            <Link
+                              to={`/clients/${groupId}/invoice/${inv.id}/edit`}
+                              className="btn btn-ghost invoice-actions__edit"
+                            >
+                              Edit
+                            </Link>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() =>
+                                navigate(
+                                  `/clients/${groupId}/invoice/new?copyFrom=${inv.id}`
+                                )
+                              }
+                            >
+                              Copy as new
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {tab === "quotations" && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2 className="panel-title">All quotations</h2>
+            <p className="meta" style={{ margin: 0 }}>
+              Estimates only — no invoice number, advance, or installments
+            </p>
+          </div>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Project</th>
+                  <th>Work type</th>
+                  <th>Quoted amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotations.length === 0 && (
+                  <tr>
+                    <td colSpan={5}>No quotations yet.</td>
+                  </tr>
+                )}
+                {quotations.map((inv) => (
+                  <tr key={inv.id}>
+                    <td data-label="Date">
+                      {formatDisplayDate(inv.createdAt.slice(0, 10))}
+                    </td>
+                    <td data-label="Project">{inv.projectName}</td>
+                    <td data-label="Work type">
+                      {formatWorkTypes(inv.workTypes, inv.workTypeCustom)}
+                    </td>
+                    <td data-label="Quoted amount">
+                      ₹{formatINR(inv.totalBill)}
+                    </td>
+                    <td data-label="Action">
+                      <div className="invoice-actions">
+                        <Link
+                          to={`/clients/${inv.id}/print`}
+                          className="btn btn-dark"
+                        >
+                          Print quote
                         </Link>
                         {!isCompleted && (
                           <>

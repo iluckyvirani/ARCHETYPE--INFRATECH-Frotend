@@ -1,13 +1,18 @@
 /** Build a safe PDF / print filename and trigger A4 print. */
 
-export type BillPrintKind = "invoice" | "advance-slip" | "demand-payment";
+export type BillPrintKind =
+  | "invoice"
+  | "quotation"
+  | "advance-slip"
+  | "demand-payment";
 
 export const DEFAULT_APP_TITLE = "Archetive Infratech — Billing";
 
 const TYPE_LABEL: Record<BillPrintKind, string> = {
   invoice: "invoice",
-  "advance-slip": "advance-slip",
-  "demand-payment": "demand-payment",
+  quotation: "quotation",
+  "advance-slip": "advance",
+  "demand-payment": "demand",
 };
 
 export function billPrintKindFromRoute(
@@ -49,9 +54,10 @@ export function buildBillFileName(opts: {
   const name = slugFilePart(opts.clientName);
   const date = fileDatePart(opts.date);
   const type = TYPE_LABEL[opts.kind];
-  const no = opts.invoiceNo
-    ? `_${slugFilePart(String(opts.invoiceNo))}`
-    : "";
+  const no =
+    opts.kind !== "quotation" && opts.invoiceNo
+      ? `_${slugFilePart(String(opts.invoiceNo))}`
+      : "";
   return `${name}_${date}${no}_${type}`;
 }
 

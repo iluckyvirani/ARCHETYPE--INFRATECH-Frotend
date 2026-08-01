@@ -1,5 +1,4 @@
 import { useMemo, type ReactNode } from "react";
-import { BRAND } from "../lib/brand";
 import type { Invoice } from "../lib/types";
 import {
   ADVANCE_PAYMENT_FIELDS as F,
@@ -7,23 +6,28 @@ import {
   formatSlashDate,
   type FieldSpec,
 } from "./advancePaymentFields";
+import "./advancePaymentPrint.css";
 
-const BG = "/advance-payment-demand.jpg";
-const CREAM = "#f6f0e8";
+const BG = "/advance-payment-demand.png";
+
+type FieldKey = keyof typeof F;
 
 function Field({
+  name,
   spec,
   children,
-  cover,
 }: {
+  name: FieldKey;
   spec: FieldSpec;
   children?: ReactNode;
-  cover?: boolean;
 }) {
   if (!children) return null;
+  const withBg = name === "date" || name === "dueDate";
+  const bgColor =
+    name === "dueDate" ? "#00261a" : name === "date" ? "#f7f6f3" : "transparent";
   return (
     <div
-      className="pdn-field"
+      className={`pdn-field apd-field apd-field--${name}`}
       style={{
         position: "absolute",
         left: spec.left,
@@ -38,8 +42,9 @@ function Field({
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
-        background: cover ? CREAM : "transparent",
-        padding: cover ? "1px 4px 2px" : 0,
+        background: withBg ? bgColor : "transparent",
+        padding: withBg ? "2px 6px" : 0,
+        borderRadius: withBg ? 4 : 0,
         boxSizing: "border-box",
       }}
     >
@@ -54,7 +59,7 @@ type Props = {
   dueDate?: string | null;
 };
 
-/** Advance Payment Demand — JPEG template + invoice/bank text overlay. */
+/** Advance Payment Demand — template image has bank details; overlay client/amount only. */
 export function PdfAdvancePaymentDemand({
   invoice,
   amountDue,
@@ -77,11 +82,6 @@ export function PdfAdvancePaymentDemand({
       projectLocation: invoice.location || "",
       amountDue: formatAmount(amount),
       dueDate: formatSlashDate(due),
-      accountName: BRAND.bank.accountName,
-      bankName: BRAND.bank.bankName,
-      accountNo: BRAND.bank.accountNo,
-      // Keep IFSC short so it fits the line
-      ifsc: BRAND.bank.ifsc.replace(/\s*\(.*\)\s*$/, "").trim(),
     };
   }, [invoice, amountDue, dueDate]);
 
@@ -89,30 +89,26 @@ export function PdfAdvancePaymentDemand({
     <div className="print-page pdn-sheet-wrap">
       <div className="pdn-sheet" id="advance-payment-print-root">
         <img className="pdn-sheet__bg" src={BG} alt="" draggable={false} />
-        <Field spec={F.noteNo} cover>
+        <Field name="noteNo" spec={F.noteNo}>
           {values.noteNo}
         </Field>
-        <Field spec={F.date} cover>
+        <Field name="date" spec={F.date}>
           {values.date}
         </Field>
-        <Field spec={F.clientName}>{values.clientName}</Field>
-        <Field spec={F.projectName}>{values.projectName}</Field>
-        <Field spec={F.projectLocation}>{values.projectLocation}</Field>
-        <Field spec={F.amountDue}>{values.amountDue}</Field>
-        <Field spec={F.dueDate} cover>
+        <Field name="clientName" spec={F.clientName}>
+          {values.clientName}
+        </Field>
+        <Field name="projectName" spec={F.projectName}>
+          {values.projectName}
+        </Field>
+        <Field name="projectLocation" spec={F.projectLocation}>
+          {values.projectLocation}
+        </Field>
+        <Field name="amountDue" spec={F.amountDue}>
+          {values.amountDue}
+        </Field>
+        <Field name="dueDate" spec={F.dueDate}>
           {values.dueDate}
-        </Field>
-        <Field spec={F.accountName} cover>
-          {values.accountName}
-        </Field>
-        <Field spec={F.bankName} cover>
-          {values.bankName}
-        </Field>
-        <Field spec={F.accountNo} cover>
-          {values.accountNo}
-        </Field>
-        <Field spec={F.ifsc} cover>
-          {values.ifsc}
         </Field>
       </div>
     </div>

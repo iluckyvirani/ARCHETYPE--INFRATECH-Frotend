@@ -1,0 +1,87 @@
+/**
+ * Payment Demand Note — PRINT-ONLY field positions.
+ * Screen preview uses PAYMENT_DEMAND_FIELDS in paymentDemandFields.ts.
+ * Tweak these @media print values so Save-as-PDF matches the A4 sheet.
+ */
+
+@media print {
+  #payment-demand-print-root .pdn-note-field--clientName {
+    left: 12% !important;
+    top: 38.5% !important;
+    width: 48% !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    background: transparent !important;
+  }
+
+  #payment-demand-print-root .pdn-note-field--clientAddress {
+    left: 12% !important;
+    top: 41.2% !important;
+    width: 48% !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    background: transparent !important;
+  }
+
+  #payment-demand-print-root .pdn-note-field--date {
+    left: 68% !important;
+    top: 37.5% !important;
+    width: 24% !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    background: #faf6f3 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+
+  #payment-demand-print-root .pdn-note-field--invoiceNo {
+    left: 10% !important;
+    top: 69.5% !important;
+    width: 16% !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    text-align: center !important;
+    background: transparent !important;
+  }
+
+  #payment-demand-print-root .pdn-note-field--invoiceDate {
+    left: 30% !important;
+    top: 69.5% !important;
+    width: 16% !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    text-align: center !important;
+    background: #faf6f3 !important;
+    padding: 2px 4px !important;
+    border-radius: 4px !important;
+  }
+
+  #payment-demand-print-root .pdn-note-field--amountDue {
+    left: 50% !important;
+    top: 69.5% !important;
+    width: 16% !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #1a1a1a !important;
+    text-align: center !important;
+    background: transparent !important;
+  }
+
+  #payment-demand-print-root .pdn-note-field--dueDate {
+    left: 70% !important;
+    top: 69.5% !important;
+    width: 18% !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    text-align: center !important;
+    background: #faf6f3 !important;
+    padding: 2px 4px !important;
+    border-radius: 4px !important;
+  }
+}

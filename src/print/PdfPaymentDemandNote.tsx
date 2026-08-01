@@ -6,23 +6,30 @@ import {
   type FieldSpec,
 } from "./advancePaymentFields";
 import { PAYMENT_DEMAND_FIELDS as F } from "./paymentDemandFields";
+import "./paymentDemandPrint.css";
 
-const BG = "/payment-demand-note.jpg";
-const CREAM = "#faf6f3";
+const BG = "/payment-demand-note.png";
+const DATE_BG = "#faf6f3";
+
+type FieldKey = keyof typeof F;
+
+/** Only date fields get a background (covers template underlines). */
+const DATE_FIELDS = new Set<FieldKey>(["date", "invoiceDate", "dueDate"]);
 
 function Field({
+  name,
   spec,
   children,
-  cover,
 }: {
+  name: FieldKey;
   spec: FieldSpec;
   children?: ReactNode;
-  cover?: boolean;
 }) {
   if (!children) return null;
+  const withBg = DATE_FIELDS.has(name);
   return (
     <div
-      className="pdn-field"
+      className={`pdn-field pdn-note-field pdn-note-field--${name}`}
       style={{
         position: "absolute",
         left: spec.left,
@@ -37,8 +44,9 @@ function Field({
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
-        background: cover ? CREAM : "transparent",
-        padding: cover ? "2px 4px" : 0,
+        background: withBg ? DATE_BG : "transparent",
+        padding: withBg ? "2px 4px" : 0,
+        borderRadius: withBg ? 4 : 0,
         boxSizing: "border-box",
       }}
     >
@@ -55,7 +63,7 @@ type Props = {
   dueDate?: string | null;
 };
 
-/** Payment Demand Note — JPEG template + invoice/EMI text overlay. */
+/** Payment Demand Note — template image + invoice/EMI text overlay. */
 export function PdfPaymentDemandNote({
   invoice,
   amountDue,
@@ -63,8 +71,7 @@ export function PdfPaymentDemandNote({
 }: Props) {
   const values = useMemo(() => {
     const invoiceDay = invoice.createdAt.slice(0, 10);
-    const due =
-      dueDate || invoice.oneTimeDueDate || invoiceDay;
+    const due = dueDate || invoice.oneTimeDueDate || invoiceDay;
     const amount =
       amountDue != null
         ? amountDue
@@ -73,10 +80,11 @@ export function PdfPaymentDemandNote({
           : invoice.totalBill;
     return {
       clientName: invoice.name || "",
+      clientAddress: invoice.location || "",
       date: formatSlashDate(new Date().toISOString().slice(0, 10)),
       invoiceNo: invoice.invoiceNo || "",
       invoiceDate: formatSlashDate(invoiceDay),
-      amountDue: `₹${formatAmount(amount)}`,
+      amountDue: formatAmount(amount),
       dueDate: formatSlashDate(due),
     };
   }, [invoice, amountDue, dueDate]);
@@ -85,20 +93,25 @@ export function PdfPaymentDemandNote({
     <div className="print-page pdn-sheet-wrap">
       <div className="pdn-sheet" id="payment-demand-print-root">
         <img className="pdn-sheet__bg" src={BG} alt="" draggable={false} />
-        <Field spec={F.clientName}>{values.clientName}</Field>
-        <Field spec={F.date} cover>
+        <Field name="clientName" spec={F.clientName}>
+          {values.clientName}
+        </Field>
+        <Field name="clientAddress" spec={F.clientAddress}>
+          {values.clientAddress}
+        </Field>
+        <Field name="date" spec={F.date}>
           {values.date}
         </Field>
-        <Field spec={F.invoiceNo} cover>
+        <Field name="invoiceNo" spec={F.invoiceNo}>
           {values.invoiceNo}
         </Field>
-        <Field spec={F.invoiceDate} cover>
+        <Field name="invoiceDate" spec={F.invoiceDate}>
           {values.invoiceDate}
         </Field>
-        <Field spec={F.amountDue} cover>
+        <Field name="amountDue" spec={F.amountDue}>
           {values.amountDue}
         </Field>
-        <Field spec={F.dueDate} cover>
+        <Field name="dueDate" spec={F.dueDate}>
           {values.dueDate}
         </Field>
       </div>

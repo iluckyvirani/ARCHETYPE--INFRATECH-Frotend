@@ -19,6 +19,7 @@ import { WorkTypeSelect } from "../components/WorkTypeSelect";
 import type {
   AdditionalWork,
   AreaMode,
+  DocumentType,
   FeeMode,
   InstallmentMode,
   PaymentPlan,
@@ -63,6 +64,7 @@ export function NewClientPage() {
   const [additionalWorks, setAdditionalWorks] = useState<AdditionalWork[]>([]);
   const [visitIncluded, setVisitIncluded] = useState(true);
   const [visitFee, setVisitFee] = useState("");
+  const [documentType, setDocumentType] = useState<DocumentType>("invoice");
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [advanceDate, setAdvanceDate] = useState(todayISO());
   const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>("one_time");
@@ -101,7 +103,8 @@ export function NewClientPage() {
         costPerSqft: effectiveRate,
         feePercent: Number(feePercent) || 0,
         fixedAmount: Number(fixedAmount) || 0,
-        advanceAmount: Number(advanceAmount) || 0,
+        advanceAmount:
+          documentType === "quotation" ? 0 : Number(advanceAmount) || 0,
         additionalWorks,
         visitIncluded,
         visitFee: Number(visitFee) || 0,
@@ -112,6 +115,7 @@ export function NewClientPage() {
       effectiveRate,
       feePercent,
       fixedAmount,
+      documentType,
       advanceAmount,
       additionalWorks,
       visitIncluded,
@@ -120,7 +124,9 @@ export function NewClientPage() {
   );
 
   const effectivePlan: PaymentPlan =
-    totals.balance <= 0 ? "none" : paymentPlan;
+    documentType === "quotation" || totals.balance <= 0
+      ? "none"
+      : paymentPlan;
 
   const emiCount = useMemo(
     () =>
@@ -152,20 +158,23 @@ export function NewClientPage() {
 
   const preview = useMemo(
     () =>
-      buildSchedulePreview({
-        clientId: "preview",
-        balance: totals.balance,
-        advanceAmount: Number(advanceAmount) || 0,
-        advanceDate: Number(advanceAmount) > 0 ? advanceDate : null,
-        paymentPlan: effectivePlan,
-        installmentMode,
-        installmentMonths: Number(installmentMonths) || 0,
-        installmentCount: Number(installmentCount) || 0,
-        installmentDueDates,
-        oneTimeDueDate,
-        stages,
-      }),
+      documentType === "quotation"
+        ? []
+        : buildSchedulePreview({
+            clientId: "preview",
+            balance: totals.balance,
+            advanceAmount: Number(advanceAmount) || 0,
+            advanceDate: Number(advanceAmount) > 0 ? advanceDate : null,
+            paymentPlan: effectivePlan,
+            installmentMode,
+            installmentMonths: Number(installmentMonths) || 0,
+            installmentCount: Number(installmentCount) || 0,
+            installmentDueDates,
+            oneTimeDueDate,
+            stages,
+          }),
     [
+      documentType,
       totals.balance,
       advanceAmount,
       advanceDate,
@@ -241,49 +250,52 @@ export function NewClientPage() {
       }
     }
 
-    const advance = Number(advanceAmount) || 0;
-    if (advance > totals.totalBill) {
-      setError("Advance cannot exceed total bill.");
-      return;
-    }
-    if (advance > 0 && !advanceDate) {
-      setError("Select advance date.");
-      return;
-    }
-
-    if (totals.balance > 0) {
-      if (paymentPlan === "one_time" && !oneTimeDueDate) {
-        setError("Select one-time due date.");
+    const advance =
+      documentType === "quotation" ? 0 : Number(advanceAmount) || 0;
+    if (documentType === "invoice") {
+      if (advance > totals.totalBill) {
+        setError("Advance cannot exceed total bill.");
         return;
       }
-      if (paymentPlan === "installment") {
-        if (!(Number(installmentMonths) > 0)) {
-          setError("Enter number of months for installments.");
-          return;
-        }
-        if (
-          installmentMode === "count_over_months" &&
-          !(Number(installmentCount) > 0)
-        ) {
-          setError("Enter number of installments.");
-          return;
-        }
-        if (!installmentFirstDue) {
-          setError("Select first installment due date.");
-          return;
-        }
+      if (advance > 0 && !advanceDate) {
+        setError("Select advance date.");
+        return;
       }
-      if (paymentPlan === "stage") {
-        const sum = stagesSum(stages);
-        if (Math.abs(sum - totals.balance) > 0.01) {
-          setError(
-            `Stage amounts (₹${formatINR(sum)}) must equal balance ₹${formatINR(totals.balance)}.`
-          );
+
+      if (totals.balance > 0) {
+        if (paymentPlan === "one_time" && !oneTimeDueDate) {
+          setError("Select one-time due date.");
           return;
         }
-        if (stages.some((s) => !s.name.trim() || !s.dueDate)) {
-          setError("Each stage needs a name and due date.");
-          return;
+        if (paymentPlan === "installment") {
+          if (!(Number(installmentMonths) > 0)) {
+            setError("Enter number of months for installments.");
+            return;
+          }
+          if (
+            installmentMode === "count_over_months" &&
+            !(Number(installmentCount) > 0)
+          ) {
+            setError("Enter number of installments.");
+            return;
+          }
+          if (!installmentFirstDue) {
+            setError("Select first installment due date.");
+            return;
+          }
+        }
+        if (paymentPlan === "stage") {
+          const sum = stagesSum(stages);
+          if (Math.abs(sum - totals.balance) > 0.01) {
+            setError(
+              `Stage amounts (₹${formatINR(sum)}) must equal balance ₹${formatINR(totals.balance)}.`
+            );
+            return;
+          }
+          if (stages.some((s) => !s.name.trim() || !s.dueDate)) {
+            setError("Each stage needs a name and due date.");
+            return;
+          }
         }
       }
     }
@@ -319,6 +331,7 @@ export function NewClientPage() {
         ),
         visitIncluded,
         visitFee: visitIncluded ? 0 : Number(visitFee) || 0,
+        documentType,
         advanceAmount: advance,
         advanceDate: advance > 0 ? advanceDate : null,
         paymentPlan: effectivePlan,
@@ -352,11 +365,39 @@ export function NewClientPage() {
       <header className="page-header">
         <div>
           <h1>New Client</h1>
-          <p>Fee mode, advance and payment schedule</p>
+          <p>
+            {documentType === "quotation"
+              ? "Create a quotation — same layout, no advance or installments"
+              : "Fee mode, advance and payment schedule"}
+          </p>
         </div>
       </header>
 
       <form className="panel" onSubmit={onSubmit}>
+        <h2 style={{ margin: "0 0 0.75rem", color: "#0b1f14" }}>
+          Document type
+        </h2>
+        <div
+          className="segmented"
+          style={{ marginBottom: "1.25rem", gridTemplateColumns: "1fr 1fr" }}
+        >
+          {(
+            [
+              ["invoice", "Invoice"],
+              ["quotation", "Quotation"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={documentType === value ? "active" : ""}
+              onClick={() => setDocumentType(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="form-grid two">
           <label className="field">
             Client name
@@ -788,6 +829,8 @@ export function NewClientPage() {
           </label>
         )}
 
+        {documentType === "invoice" && (
+          <>
         <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
           Advance
         </h2>
@@ -1029,12 +1072,18 @@ export function NewClientPage() {
             </tbody>
           </table>
         </div>
+          </>
+        )}
 
         {error && <p className="error-text">{error}</p>}
 
         <div className="row-actions" style={{ marginTop: "1.25rem" }}>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? "Saving…" : "Save client"}
+            {saving
+              ? "Saving…"
+              : documentType === "quotation"
+                ? "Save quotation"
+                : "Save client"}
           </button>
         </div>
       </form>

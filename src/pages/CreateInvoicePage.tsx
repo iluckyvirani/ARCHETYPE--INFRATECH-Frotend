@@ -20,6 +20,7 @@ import { createInvoiceForClient, getClientGroup } from "../lib/store";
 import type {
   AdditionalWork,
   AreaMode,
+  DocumentType,
   FeeMode,
   InstallmentMode,
   PaymentPlan,
@@ -68,6 +69,7 @@ export function CreateInvoicePage() {
   const [additionalWorks, setAdditionalWorks] = useState<AdditionalWork[]>([]);
   const [visitIncluded, setVisitIncluded] = useState(true);
   const [visitFee, setVisitFee] = useState("");
+  const [documentType, setDocumentType] = useState<DocumentType>("invoice");
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [advanceDate, setAdvanceDate] = useState(todayISO());
   const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>("one_time");
@@ -181,7 +183,8 @@ export function CreateInvoicePage() {
         costPerSqft: effectiveRate,
         feePercent: Number(feePercent) || 0,
         fixedAmount: Number(fixedAmount) || 0,
-        advanceAmount: Number(advanceAmount) || 0,
+        advanceAmount:
+          documentType === "quotation" ? 0 : Number(advanceAmount) || 0,
         additionalWorks,
         visitIncluded,
         visitFee: Number(visitFee) || 0,
@@ -192,6 +195,7 @@ export function CreateInvoicePage() {
       effectiveRate,
       feePercent,
       fixedAmount,
+      documentType,
       advanceAmount,
       additionalWorks,
       visitIncluded,
@@ -200,7 +204,9 @@ export function CreateInvoicePage() {
   );
 
   const effectivePlan: PaymentPlan =
-    totals.balance <= 0 ? "none" : paymentPlan;
+    documentType === "quotation" || totals.balance <= 0
+      ? "none"
+      : paymentPlan;
 
   const emiCount = useMemo(
     () =>
@@ -232,20 +238,23 @@ export function CreateInvoicePage() {
 
   const preview = useMemo(
     () =>
-      buildSchedulePreview({
-        clientId: groupId || "preview",
-        balance: totals.balance,
-        advanceAmount: Number(advanceAmount) || 0,
-        advanceDate: Number(advanceAmount) > 0 ? advanceDate : null,
-        paymentPlan: effectivePlan,
-        installmentMode,
-        installmentMonths: Number(installmentMonths) || 0,
-        installmentCount: Number(installmentCount) || 0,
-        installmentDueDates,
-        oneTimeDueDate,
-        stages,
-      }),
+      documentType === "quotation"
+        ? []
+        : buildSchedulePreview({
+            clientId: groupId || "preview",
+            balance: totals.balance,
+            advanceAmount: Number(advanceAmount) || 0,
+            advanceDate: Number(advanceAmount) > 0 ? advanceDate : null,
+            paymentPlan: effectivePlan,
+            installmentMode,
+            installmentMonths: Number(installmentMonths) || 0,
+            installmentCount: Number(installmentCount) || 0,
+            installmentDueDates,
+            oneTimeDueDate,
+            stages,
+          }),
     [
+      documentType,
       groupId,
       totals.balance,
       advanceAmount,
@@ -323,28 +332,31 @@ export function CreateInvoicePage() {
       }
     }
 
-    const advance = Number(advanceAmount) || 0;
-    if (advance > totals.totalBill) {
-      setError("Advance cannot exceed total bill.");
-      return;
-    }
-    if (advance > 0 && !advanceDate) {
-      setError("Select advance date.");
-      return;
-    }
-    if (totals.balance > 0 && paymentPlan === "installment") {
-      if (!installmentFirstDue) {
-        setError("Select first installment due date.");
+    const advance =
+      documentType === "quotation" ? 0 : Number(advanceAmount) || 0;
+    if (documentType === "invoice") {
+      if (advance > totals.totalBill) {
+        setError("Advance cannot exceed total bill.");
         return;
       }
-    }
-    if (totals.balance > 0 && paymentPlan === "stage") {
-      const sum = stagesSum(stages);
-      if (Math.abs(sum - totals.balance) > 0.01) {
-        setError(
-          `Stage amounts must equal balance ₹${formatINR(totals.balance)}.`
-        );
+      if (advance > 0 && !advanceDate) {
+        setError("Select advance date.");
         return;
+      }
+      if (totals.balance > 0 && paymentPlan === "installment") {
+        if (!installmentFirstDue) {
+          setError("Select first installment due date.");
+          return;
+        }
+      }
+      if (totals.balance > 0 && paymentPlan === "stage") {
+        const sum = stagesSum(stages);
+        if (Math.abs(sum - totals.balance) > 0.01) {
+          setError(
+            `Stage amounts must equal balance ₹${formatINR(totals.balance)}.`
+          );
+          return;
+        }
       }
     }
 
@@ -378,6 +390,7 @@ export function CreateInvoicePage() {
         ),
         visitIncluded,
         visitFee: visitIncluded ? 0 : Number(visitFee) || 0,
+        documentType,
         advanceAmount: advance,
         advanceDate: advance > 0 ? advanceDate : null,
         paymentPlan: effectivePlan,
@@ -413,11 +426,15 @@ export function CreateInvoicePage() {
     <>
       <header className="page-header">
         <div>
-          <h1>New invoice</h1>
+          <h1>
+            {documentType === "quotation" ? "New quotation" : "New invoice"}
+          </h1>
           <p>
             {copiedFromNo
-              ? `Copied from invoice #${copiedFromNo} — edit and save as a new invoice`
-              : "Pre-filled from last invoice — client name is locked"}
+              ? `Copied from invoice #${copiedFromNo} — edit and save as a new ${documentType === "quotation" ? "quotation" : "invoice"}`
+              : documentType === "quotation"
+                ? "Same design as invoice — no advance or installments"
+                : "Pre-filled from last invoice — client name is locked"}
           </p>
         </div>
         <Link to={`/clients/${groupId}`} className="btn btn-ghost">
@@ -426,6 +443,30 @@ export function CreateInvoicePage() {
       </header>
 
       <form className="panel" onSubmit={onSubmit}>
+        <h2 style={{ margin: "0 0 0.75rem", color: "#0b1f14" }}>
+          Document type
+        </h2>
+        <div
+          className="segmented"
+          style={{ marginBottom: "1.25rem", gridTemplateColumns: "1fr 1fr" }}
+        >
+          {(
+            [
+              ["invoice", "Invoice"],
+              ["quotation", "Quotation"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={documentType === value ? "active" : ""}
+              onClick={() => setDocumentType(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="form-grid two">
           <label className="field">
             Client name (locked)
@@ -822,6 +863,8 @@ export function CreateInvoicePage() {
           </label>
         )}
 
+        {documentType === "invoice" && (
+          <>
         <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
           Advance
         </h2>
@@ -1018,11 +1061,17 @@ export function CreateInvoicePage() {
             ))}
           </tbody>
         </table>
+          </>
+        )}
 
         {error && <p className="error-text">{error}</p>}
         <div className="row-actions" style={{ marginTop: "1.25rem" }}>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? "Saving…" : "Save invoice"}
+            {saving
+              ? "Saving…"
+              : documentType === "quotation"
+                ? "Save quotation"
+                : "Save invoice"}
           </button>
         </div>
       </form>

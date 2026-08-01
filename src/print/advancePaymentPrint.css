@@ -1,0 +1,78 @@
+/**
+ * Advance Payment Demand — PRINT-ONLY field positions.
+ * Screen preview uses ADVANCE_PAYMENT_FIELDS in advancePaymentFields.ts.
+ * Tweak these @media print values so Save-as-PDF matches the A4 sheet.
+ * Copied from the final preview layout (advancePaymentFields.ts).
+ */
+
+@media print {
+  #advance-payment-print-root .apd-field--noteNo {
+    left: 34% !important;
+    top:31% !important;
+    width: 16% !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+  }
+
+  #advance-payment-print-root .apd-field--date {
+    left: 72% !important;
+    top: 32% !important;
+    width: 30% !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    background: #f7f6f3 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+
+  #advance-payment-print-root .apd-field--clientName {
+    left: 38% !important;
+    top: 37.5% !important;
+    width: 50% !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+  }
+
+  #advance-payment-print-root .apd-field--projectName {
+    left: 38% !important;
+    top: 40.7% !important;
+    width: 50% !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+  }
+
+  #advance-payment-print-root .apd-field--projectLocation {
+    left: 38% !important;
+    top: 44% !important;
+    width: 50% !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+  }
+
+  #advance-payment-print-root .apd-field--amountDue {
+    left: 32% !important;
+    top: 54.3% !important;
+    width: 26% !important;
+    font-size: 19px !important;
+    font-weight: 700 !important;
+    color: #f6f0e8 !important;
+    text-align: left !important;
+  }
+
+  #advance-payment-print-root .apd-field--dueDate {
+    left: 73% !important;
+    top: 53.6% !important;
+    width: 20% !important;
+    font-size: 19px !important;
+    font-weight: 700 !important;
+    color: #f6f0e8 !important;
+    background: #00261a !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+}

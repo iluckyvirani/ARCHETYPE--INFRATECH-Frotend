@@ -65,6 +65,7 @@ function normalizeInvoice(c: Invoice): Invoice {
   return {
     ...c,
     groupId: c.groupId || c.id,
+    documentType: c.documentType === "quotation" ? "quotation" : "invoice",
     additionalWorks: c.additionalWorks || [],
     additionalTotal: c.additionalTotal ?? 0,
     createdAt,
@@ -158,10 +159,17 @@ function buildInvoice(
 ): { invoice: Invoice; schedule: ScheduleItem[]; notifications: NotificationItem[] } {
   const totals = calcTotals(payload);
   const id = uid("inv");
+  const isQuotation = payload.documentType === "quotation";
+  const advanceAmount = isQuotation ? 0 : Number(payload.advanceAmount) || 0;
+  const paymentPlan = isQuotation
+    ? "none"
+    : payload.paymentPlan;
+  const balance = isQuotation ? 0 : totals.balance;
   const invoice: Invoice = {
     id,
     groupId,
     invoiceNo: nextInvoiceNo(existing),
+    documentType: isQuotation ? "quotation" : "invoice",
     name: payload.name.trim(),
     location: payload.location.trim(),
     projectName: payload.projectName.trim(),
@@ -188,16 +196,20 @@ function buildInvoice(
     visitIncluded: Boolean(payload.visitIncluded),
     visitFee: totals.visitFee,
     totalBill: totals.totalBill,
-    advanceAmount: Number(payload.advanceAmount) || 0,
-    advanceDate: payload.advanceDate || null,
-    balance: totals.balance,
-    paymentPlan: payload.paymentPlan,
-    installmentMode: payload.installmentMode ?? null,
-    installmentMonths: payload.installmentMonths ?? null,
-    installmentCount: payload.installmentCount ?? null,
-    oneTimeDueDate: payload.oneTimeDueDate ?? null,
+    advanceAmount,
+    advanceDate: advanceAmount > 0 ? payload.advanceDate || null : null,
+    balance,
+    paymentPlan,
+    installmentMode: isQuotation ? null : payload.installmentMode ?? null,
+    installmentMonths: isQuotation ? null : payload.installmentMonths ?? null,
+    installmentCount: isQuotation ? null : payload.installmentCount ?? null,
+    oneTimeDueDate: isQuotation ? null : payload.oneTimeDueDate ?? null,
     createdAt: new Date().toISOString(),
   };
+
+  if (isQuotation) {
+    return { invoice, schedule: [], notifications: [] };
+  }
 
   const preview = buildSchedulePreview({
     clientId: groupId,

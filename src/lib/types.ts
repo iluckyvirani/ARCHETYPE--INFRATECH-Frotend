@@ -3,6 +3,7 @@ export type AreaMode = "total" | "floors";
 export type PaymentPlan = "one_time" | "installment" | "stage" | "none";
 export type InstallmentMode = "by_months" | "count_over_months";
 export type ScheduleKind = "advance" | "one_time" | "installment" | "stage";
+export type DocumentType = "invoice" | "quotation";
 
 export type FloorArea = {
   label: string;
@@ -34,11 +35,12 @@ export type ScheduleItem = {
   paidAt: string | null;
 };
 
-/** One invoice / sale */
+/** One invoice / quotation / sale */
 export type Invoice = {
   id: string;
   groupId: string;
   invoiceNo: string;
+  documentType: DocumentType;
   name: string;
   location: string;
   projectName: string;
@@ -127,6 +129,7 @@ export type ClientPayload = {
   additionalWorks?: AdditionalWork[];
   visitIncluded?: boolean;
   visitFee?: number | null;
+  documentType?: DocumentType;
   advanceAmount: number;
   advanceDate?: string | null;
   paymentPlan: PaymentPlan;

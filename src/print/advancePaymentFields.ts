@@ -1,67 +1,65 @@
 /**
- * Field positions as % of A4 sheet for Advance Payment Demand template.
- * Background: /advance-payment-demand.jpg
+ * Field positions as % of A4 for Advance Payment Demand — SCREEN PREVIEW.
+ * Print positions are a separate copy in advancePaymentPrint.css
+ * Background: /advance-payment-demand.png (1023×1537)
  */
 export const ADVANCE_PAYMENT_FIELDS = {
-  noteNo: { left: "34%", top: "31.6%", width: "20%", fontSize: 13, weight: 700 },
-  date: { left: "66%", top: "31.9%", width: "22%", fontSize: 13, weight: 700 },
-
-  clientName: { left: "33%", top: "36.8%", width: "40%", fontSize: 13, weight: 700 },
-  projectName: { left: "33%", top: "40.1%", width: "60%", fontSize: 13, weight: 600 },
-  projectLocation: {
-    left: "33%",
-    top: "44%",
-    width: "60%",
-    fontSize: 11,
-    weight: 600,
+  // Top card — DEMAND NOTE NO. | DATE
+  noteNo: {
+    left: "34%",
+    top: "30.2%",
+    width: "16%",
+    fontSize: 12,
+    weight: 500,
+  },
+  date: {
+    left: "71%",
+    top: "30.7%",
+    width: "28%",
+    fontSize: 12,
+    weight: 500,
   },
 
+  // Middle card — sit just above underlines
+  clientName: {
+    left: "38%",
+    top: "36.3%",
+    width: "50%",
+    fontSize: 12,
+    weight: 500,
+  },
+  projectName: {
+    left: "38%",
+    top: "39.7%",
+    width: "50%",
+    fontSize: 12,
+    weight: 500,
+  },
+  projectLocation: {
+    left: "38%",
+    top: "43%",
+    width: "50%",
+    fontSize: 12,
+    weight: 500,
+  },
+
+  // Green bar — clear of ₹ icon (icon ends ~20–28%); value under label
   amountDue: {
-    left: "19%",
-    top: "52.8%",
-    width: "30%",
-    fontSize: 17,
-    weight: 800,
-    color: "#ffffff",
+    left: "32%",
+    top: "53.3%",
+    width: "26%",
+    fontSize: 15,
+    weight: 700,
+    color: "#f6f0e8",
     align: "left" as const,
   },
-  dueDate: { left: "66.9%", top: "52.7%", width: "22%", fontSize: 14, weight: 700 },
-
-  // BANK DETAILS — measured from advance-payment-demand.jpg (1054×1492)
-  accountName: {
-    left: "26%",
-    top: "61.05%",
-    width: "38%",
-    fontSize: 12,
-    weight: 700,
-  },
-  bankName: {
-    left: "26%",
-    top: "64.15%",
-    width: "38%",
+  dueDate: {
+    left: "70%",
+    top: "52.6%",
+    width: "24%",
     fontSize: 12,
     weight: 600,
-  },
-  accountNo: {
-    left: "26%",
-    top: "66.75%",
-    width: "38%",
-    fontSize: 12,
-    weight: 600,
-  },
-  ifsc: {
-    left: "26%",
-    top: "69.1%",
-    width: "40%",
-    fontSize: 11,
-    weight: 600,
-  },
-  upiId: {
-    left: "26%",
-    top: "71.4%",
-    width: "38%",
-    fontSize: 11,
-    weight: 600,
+    color: "#f6f0e8",
   },
 };
 
@@ -73,6 +71,8 @@ export type FieldSpec = {
   weight?: number;
   color?: string;
   align?: "left" | "center" | "right";
+  /** Background when field uses cover (e.g. white box on green bar) */
+  coverColor?: string;
 };
 
 export function formatSlashDate(value: string | null | undefined): string {

@@ -141,16 +141,19 @@ export function InvoicePrintPage() {
 
   const billFileBase = useMemo(() => {
     if (!client) return "bill";
-    const kind = billPrintKindFromRoute(printType);
+    const isQuotation = client.documentType === "quotation";
+    const kind = isQuotation
+      ? ("quotation" as const)
+      : billPrintKindFromRoute(printType);
     const date =
-      (scheduleRow?.dueDate && kind !== "invoice"
+      (scheduleRow?.dueDate && kind !== "invoice" && kind !== "quotation"
         ? scheduleRow.dueDate
         : null) || client.createdAt.slice(0, 10);
     return buildBillFileName({
       clientName: client.name,
       date,
       kind,
-      invoiceNo: client.invoiceNo,
+      invoiceNo: isQuotation ? undefined : client.invoiceNo,
     });
   }, [client, printType, scheduleRow]);
 
@@ -206,23 +209,27 @@ export function InvoicePrintPage() {
     );
   }
 
+  const isQuotation = client.documentType === "quotation";
+
   const invoiceDay = client.createdAt.slice(0, 10);
   const advanceDay = client.advanceDate
     ? String(client.advanceDate).slice(0, 10)
     : null;
-  const advanceAmt = Number(client.advanceAmount) || 0;
+  const advanceAmt = isQuotation ? 0 : Number(client.advanceAmount) || 0;
   const advanceIsFuture =
     advanceAmt > 0 && !!advanceDay && advanceDay > invoiceDay;
   const advanceLabel =
-    advanceAmt > 0
+    !isQuotation && advanceAmt > 0
       ? advanceIsFuture
         ? `Advance to be paid (${formatDisplayDate(advanceDay!)})`
         : "Advance Received"
       : null;
 
-  const paidInstallments = schedule
-    .filter((s) => s.kind !== "advance" && s.paid)
-    .reduce((s, r) => s + r.amount, 0);
+  const paidInstallments = isQuotation
+    ? 0
+    : schedule
+        .filter((s) => s.kind !== "advance" && s.paid)
+        .reduce((s, r) => s + r.amount, 0);
   // Future advance is not counted as received yet
   const receivedAmount =
     (advanceIsFuture ? 0 : advanceAmt) + paidInstallments;
@@ -234,11 +241,14 @@ export function InvoicePrintPage() {
   // Visit charge is never part of invoice total — note only
   const invoiceTotal =
     Math.round((client.feeAmount + additionalTotal) * 100) / 100;
-  const totalDue = Math.max(0, invoiceTotal - receivedAmount);
+  const totalDue = isQuotation
+    ? invoiceTotal
+    : Math.max(0, invoiceTotal - receivedAmount);
   const showProjectTable =
     client.feeMode === "percentage" || client.feeMode === "area_sqft";
 
-  const hasSchedule = advanceRows.length > 0 || paymentRows.length > 0;
+  const hasSchedule =
+    !isQuotation && (advanceRows.length > 0 || paymentRows.length > 0);
   const scheduleOnSecondPage =
     hasSchedule &&
     (client.paymentPlan === "installment" || client.paymentPlan === "stage");
@@ -254,10 +264,14 @@ export function InvoicePrintPage() {
       ? "Advance Payment Demand"
       : printType === "payment-demand"
         ? "Payment Demand Note"
-        : `Invoice · ${client.invoiceNo}`;
+        : isQuotation
+          ? "Quotation"
+          : `Invoice · ${client.invoiceNo}`;
 
   const hasAdvanceSlip =
-    printType === "invoice" && Number(client.advanceAmount) > 0;
+    !isQuotation &&
+    printType === "invoice" &&
+    Number(client.advanceAmount) > 0;
 
   return (
     <div className="invoice-wrap print-shell">
@@ -326,8 +340,8 @@ export function InvoicePrintPage() {
         <>
           <LetterheadShell>
             <header className="inv-doc-title">
-              <span>Tax Invoice</span>
-              <strong>#{client.invoiceNo}</strong>
+              <span>{isQuotation ? "Quotation" : "Tax Invoice"}</span>
+              {!isQuotation && <strong>#{client.invoiceNo}</strong>}
             </header>
 
             <div className="inv-meta">
@@ -354,7 +368,9 @@ export function InvoicePrintPage() {
 
               <div className="inv-panel">
                 <div className="inv-date-row">
-                  <p className="inv-label">Invoice date</p>
+                  <p className="inv-label">
+                    {isQuotation ? "Quotation date" : "Invoice date"}
+                  </p>
                   <p className="inv-date">
                     {formatDisplayDate(client.createdAt.slice(0, 10))}
                   </p>
@@ -511,7 +527,7 @@ export function InvoicePrintPage() {
                 </tbody>
               </table>
               <div className="inv-payable">
-                <span>Amount payable</span>
+                <span>{isQuotation ? "Quoted amount" : "Amount payable"}</span>
                 <strong>₹{formatINR(totalDue)}</strong>
               </div>
             </section>
@@ -558,7 +574,7 @@ export function InvoicePrintPage() {
                     ? planSectionTitle(client.paymentPlan)
                     : "Terms & conditions"}
                 </span>
-                <strong>#{client.invoiceNo}</strong>
+                {!isQuotation && <strong>#{client.invoiceNo}</strong>}
               </header>
               <p className="inv-page2-meta">
                 {client.name} · {client.projectName}
