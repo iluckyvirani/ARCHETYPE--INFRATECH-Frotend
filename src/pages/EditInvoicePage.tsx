@@ -5,13 +5,28 @@ import { WorkTypeSelect } from "../components/WorkTypeSelect";
 import {
   additionalWorksSum,
   calcTotals,
+  floorsAreaSum,
+  floorsProjectCost,
   formatINR,
   todayISO,
 } from "../lib/calc";
 import { getClient, updateInvoice } from "../lib/store";
-import type { AdditionalWork, FeeMode, Invoice } from "../lib/types";
+import type {
+  AdditionalWork,
+  AreaMode,
+  FeeMode,
+  Invoice,
+} from "../lib/types";
 
 const emptyWork = (): AdditionalWork => ({ name: "", qty: 0, rate: 0 });
+
+type FloorRow = { label: string; area: string; cost: string };
+
+const emptyFloor = (n: number): FloorRow => ({
+  label: `Floor ${n}`,
+  area: "",
+  cost: "",
+});
 
 export function EditInvoicePage() {
   const { id: groupId, invoiceId } = useParams();
@@ -30,7 +45,9 @@ export function EditInvoicePage() {
   const [workTypeCustom, setWorkTypeCustom] = useState("");
   const [workTypeCustomEnabled, setWorkTypeCustomEnabled] = useState(false);
   const [feeMode, setFeeMode] = useState<FeeMode>("area_sqft");
+  const [areaMode, setAreaMode] = useState<AreaMode>("total");
   const [areaSqft, setAreaSqft] = useState("");
+  const [floors, setFloors] = useState<FloorRow[]>([emptyFloor(1)]);
   const [costPerSqft, setCostPerSqft] = useState("");
   const [feePercent, setFeePercent] = useState("7");
   const [fixedAmount, setFixedAmount] = useState("");
@@ -57,6 +74,19 @@ export function EditInvoicePage() {
       setWorkTypeCustom(inv.workTypeCustom || "");
       setWorkTypeCustomEnabled(Boolean(inv.workTypeCustom));
       setFeeMode(inv.feeMode);
+      if ((inv.floors || []).length > 0) {
+        setAreaMode("floors");
+        setFloors(
+          inv.floors.map((f, i) => ({
+            label: f.label || `Floor ${i + 1}`,
+            area: String(f.areaSqft || ""),
+            cost: String(f.costPerSqft || ""),
+          }))
+        );
+      } else {
+        setAreaMode("total");
+        setFloors([emptyFloor(1)]);
+      }
       setAreaSqft(inv.areaSqft != null ? String(inv.areaSqft) : "");
       setCostPerSqft(inv.costPerSqft != null ? String(inv.costPerSqft) : "");
       setFeePercent(inv.feePercent != null ? String(inv.feePercent) : "7");
@@ -72,12 +102,26 @@ export function EditInvoicePage() {
     });
   }, [invoiceId]);
 
+  const floorInputs = floors.map((f) => ({
+    areaSqft: Number(f.area) || 0,
+    costPerSqft: Number(f.cost) || 0,
+  }));
+  const effectiveArea =
+    areaMode === "floors" ? floorsAreaSum(floorInputs) : Number(areaSqft) || 0;
+  const floorProjectCost = floorsProjectCost(floorInputs);
+  const effectiveRate =
+    areaMode === "floors"
+      ? effectiveArea > 0
+        ? floorProjectCost / effectiveArea
+        : 0
+      : Number(costPerSqft) || 0;
+
   const totals = useMemo(
     () =>
       calcTotals({
         feeMode,
-        areaSqft: Number(areaSqft) || 0,
-        costPerSqft: Number(costPerSqft) || 0,
+        areaSqft: effectiveArea,
+        costPerSqft: effectiveRate,
         feePercent: Number(feePercent) || 0,
         fixedAmount: Number(fixedAmount) || 0,
         advanceAmount: Number(advanceAmount) || 0,
@@ -87,8 +131,8 @@ export function EditInvoicePage() {
       }),
     [
       feeMode,
-      areaSqft,
-      costPerSqft,
+      effectiveArea,
+      effectiveRate,
       feePercent,
       fixedAmount,
       advanceAmount,
@@ -116,9 +160,63 @@ export function EditInvoicePage() {
       setError("Select at least one working type");
       return;
     }
+    if (workTypeCustomEnabled && !workTypeCustom.trim()) {
+      setError("Enter custom working type, or turn off Customise.");
+      return;
+    }
     if (!visitIncluded && !(Number(visitFee) > 0)) {
       setError("Enter visit fee amount, or check Visit included.");
       return;
+    }
+
+    if (feeMode === "percentage") {
+      if (areaMode === "floors") {
+        const ok = floors.every(
+          (f) => f.label.trim() && Number(f.area) > 0 && Number(f.cost) > 0
+        );
+        if (!ok || !(Number(feePercent) > 0)) {
+          setError(
+            "Enter floor name, area, fee per sqft for each floor, and fee %."
+          );
+          return;
+        }
+      } else if (
+        !(effectiveArea > 0 && Number(costPerSqft) > 0 && Number(feePercent) > 0)
+      ) {
+        setError("Enter area, fee per sqft and percentage.");
+        return;
+      }
+    }
+    if (feeMode === "fixed" && !(Number(fixedAmount) > 0)) {
+      setError("Enter a fixed amount.");
+      return;
+    }
+    if (feeMode === "area_sqft") {
+      if (areaMode === "floors") {
+        const ok = floors.every(
+          (f) => f.label.trim() && Number(f.area) > 0 && Number(f.cost) > 0
+        );
+        if (!ok) {
+          setError("Enter floor name, area and fee per sqft for each floor.");
+          return;
+        }
+      } else if (!(effectiveArea > 0 && Number(costPerSqft) > 0)) {
+        setError("Enter area and fee per sqft.");
+        return;
+      }
+    }
+
+    const isQuote = invoice.documentType === "quotation";
+    const advance = isQuote ? 0 : Number(advanceAmount) || 0;
+    if (!isQuote) {
+      if (advance > totals.totalBill) {
+        setError("Advance cannot exceed total bill.");
+        return;
+      }
+      if (advance > 0 && !advanceDate) {
+        setError("Select advance date.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -133,21 +231,34 @@ export function EditInvoicePage() {
           ? workTypeCustom.trim()
           : null,
         feeMode,
-        areaSqft: feeMode === "fixed" ? null : Number(areaSqft) || 0,
-        costPerSqft: feeMode === "fixed" ? null : Number(costPerSqft) || 0,
+        areaSqft: feeMode === "fixed" ? null : effectiveArea || 0,
+        costPerSqft: feeMode === "fixed" ? null : effectiveRate || 0,
+        floors:
+          (feeMode === "area_sqft" || feeMode === "percentage") &&
+          areaMode === "floors"
+            ? floors
+                .map((f) => ({
+                  label: f.label.trim(),
+                  areaSqft: Number(f.area) || 0,
+                  costPerSqft: Number(f.cost) || 0,
+                }))
+                .filter((f) => f.label && f.areaSqft > 0 && f.costPerSqft > 0)
+            : [],
         feePercent: feeMode === "percentage" ? Number(feePercent) || 0 : null,
         fixedAmount: feeMode === "fixed" ? Number(fixedAmount) || 0 : null,
-        additionalWorks,
+        additionalWorks: additionalWorks.filter(
+          (w) => w.name.trim() && (Number(w.qty) > 0 || Number(w.rate) > 0)
+        ),
         visitIncluded,
         visitFee: visitIncluded ? 0 : Number(visitFee) || 0,
-        advanceAmount: Number(advanceAmount) || 0,
-        advanceDate:
-          Number(advanceAmount) > 0 ? advanceDate : null,
-        paymentPlan: invoice.paymentPlan,
-        installmentMode: invoice.installmentMode,
-        installmentMonths: invoice.installmentMonths,
-        installmentCount: invoice.installmentCount,
-        oneTimeDueDate: invoice.oneTimeDueDate,
+        documentType: invoice.documentType || "invoice",
+        advanceAmount: advance,
+        advanceDate: advance > 0 ? advanceDate : null,
+        paymentPlan: isQuote ? "none" : invoice.paymentPlan,
+        installmentMode: isQuote ? null : invoice.installmentMode,
+        installmentMonths: isQuote ? null : invoice.installmentMonths,
+        installmentCount: isQuote ? null : invoice.installmentCount,
+        oneTimeDueDate: isQuote ? null : invoice.oneTimeDueDate,
         syncClientInfo: clientInfoUnlocked,
       });
       navigate(`/clients/${groupId || invoice.groupId}`);
@@ -171,12 +282,21 @@ export function EditInvoicePage() {
     );
   }
 
+  const isQuote = invoice.documentType === "quotation";
+
   return (
     <>
       <header className="page-header">
         <div>
-          <h1>Edit invoice #{invoice.invoiceNo}</h1>
-          <p>Update this invoice. Unlock client name &amp; address to change them.</p>
+          <h1>
+            {isQuote
+              ? "Edit quotation"
+              : `Edit invoice #${invoice.invoiceNo}`}
+          </h1>
+          <p>
+            Update this {isQuote ? "quotation" : "invoice"}. Unlock client name
+            &amp; address to change them.
+          </p>
         </div>
         <Link
           to={`/clients/${groupId || invoice.groupId}`}
@@ -199,7 +319,8 @@ export function EditInvoicePage() {
             <span>Enable editing client name &amp; address</span>
           </label>
           <p className="meta" style={{ margin: "0.35rem 0 0" }}>
-            When enabled, name and address update for this client across invoices.
+            When enabled, name and address update for this client across
+            invoices.
           </p>
         </div>
 
@@ -266,30 +387,170 @@ export function EditInvoicePage() {
         </div>
 
         <div className="form-grid two">
-          {feeMode !== "fixed" && (
+          {(feeMode === "percentage" || feeMode === "area_sqft") && (
             <>
-              <label className="field">
-                Area (sqft)
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={areaSqft}
-                  onChange={(e) => setAreaSqft(e.target.value)}
-                  required
-                />
-              </label>
-              <label className="field">
-                Fee per sqft
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={costPerSqft}
-                  onChange={(e) => setCostPerSqft(e.target.value)}
-                  required
-                />
-              </label>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div
+                  className="segmented"
+                  role="tablist"
+                  aria-label="Area input"
+                >
+                  {(
+                    [
+                      ["total", "Total area"],
+                      ["floors", "Floor by area"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={areaMode === value ? "active" : ""}
+                      onClick={() => setAreaMode(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {areaMode === "total" ? (
+                <>
+                  <label className="field">
+                    Area (sqft)
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={areaSqft}
+                      onChange={(e) => setAreaSqft(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    Fee per sqft
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={costPerSqft}
+                      onChange={(e) => setCostPerSqft(e.target.value)}
+                      required
+                    />
+                  </label>
+                </>
+              ) : (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  {floors.map((floor, idx) => {
+                    const area = Number(floor.area) || 0;
+                    const rate = Number(floor.cost) || 0;
+                    const line = area * rate;
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          marginBottom: "0.85rem",
+                          paddingBottom: "0.85rem",
+                          borderBottom: "1px solid rgba(11, 31, 20, 0.08)",
+                        }}
+                      >
+                        <div className="form-grid two">
+                          <label className="field">
+                            Floor name
+                            <input
+                              type="text"
+                              placeholder={`Floor ${idx + 1}`}
+                              value={floor.label}
+                              onChange={(e) => {
+                                const next = [...floors];
+                                next[idx] = {
+                                  ...next[idx],
+                                  label: e.target.value,
+                                };
+                                setFloors(next);
+                              }}
+                            />
+                          </label>
+                          <label className="field">
+                            Area (sqft)
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              placeholder="e.g. 450"
+                              value={floor.area}
+                              onChange={(e) => {
+                                const next = [...floors];
+                                next[idx] = {
+                                  ...next[idx],
+                                  area: e.target.value,
+                                };
+                                setFloors(next);
+                              }}
+                            />
+                          </label>
+                          <label className="field">
+                            Fee per sqft (₹)
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              placeholder="e.g. 1200"
+                              value={floor.cost}
+                              onChange={(e) => {
+                                const next = [...floors];
+                                next[idx] = {
+                                  ...next[idx],
+                                  cost: e.target.value,
+                                };
+                                setFloors(next);
+                              }}
+                            />
+                          </label>
+                          <div
+                            className="meta"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              paddingBottom: "0.35rem",
+                            }}
+                          >
+                            {area > 0 && rate > 0
+                              ? `${formatINR(area)} × ₹${formatINR(rate)} = ₹${formatINR(line)}`
+                              : "Area × fee"}
+                            {floors.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                style={{ padding: "0.2rem 0.6rem" }}
+                                onClick={() =>
+                                  setFloors(floors.filter((_, i) => i !== idx))
+                                }
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() =>
+                      setFloors([...floors, emptyFloor(floors.length + 1)])
+                    }
+                  >
+                    + Add floor
+                  </button>
+                  <p className="meta" style={{ marginTop: "0.5rem" }}>
+                    Total area: <strong>{formatINR(effectiveArea)}</strong>{" "}
+                    sqft · Project cost:{" "}
+                    <strong>₹{formatINR(floorProjectCost)}</strong>
+                  </p>
+                </div>
+              )}
             </>
           )}
           {feeMode === "percentage" && (
@@ -324,7 +585,11 @@ export function EditInvoicePage() {
           Additional work
         </h2>
         {additionalWorks.map((work, idx) => (
-          <div key={idx} className="form-grid two" style={{ marginBottom: "0.75rem" }}>
+          <div
+            key={idx}
+            className="form-grid two"
+            style={{ marginBottom: "0.75rem" }}
+          >
             <label className="field" style={{ gridColumn: "1 / -1" }}>
               Name
               <input
@@ -407,32 +672,51 @@ export function EditInvoicePage() {
           </label>
         )}
 
-        <h2 style={{ margin: "1.25rem 0 0.75rem", color: "#0b1f14" }}>
-          Advance
-        </h2>
-        <div className="form-grid two">
-          <label className="field">
-            Advance amount
-            <input
-              type="number"
-              min={0}
-              step="any"
-              value={advanceAmount}
-              onChange={(e) => setAdvanceAmount(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            Advance date
-            <input
-              type="date"
-              value={advanceDate}
-              onChange={(e) => setAdvanceDate(e.target.value)}
-              disabled={!(Number(advanceAmount) > 0)}
-            />
-          </label>
-        </div>
+        {!isQuote && (
+          <>
+            <h2 style={{ margin: "1.25rem 0 0.75rem", color: "#0b1f14" }}>
+              Advance
+            </h2>
+            <div className="form-grid two">
+              <label className="field">
+                Advance amount
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={advanceAmount}
+                  onChange={(e) => setAdvanceAmount(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                Advance date
+                <input
+                  type="date"
+                  value={advanceDate}
+                  min={todayISO()}
+                  onChange={(e) => setAdvanceDate(e.target.value)}
+                  onPaste={(e) => e.preventDefault()}
+                  disabled={!(Number(advanceAmount) > 0)}
+                />
+              </label>
+            </div>
+          </>
+        )}
 
         <div className="totals-box" style={{ marginTop: "1.25rem" }}>
+          {areaMode === "floors" &&
+            (feeMode === "area_sqft" || feeMode === "percentage") &&
+            floors.map((floor, idx) => {
+              const area = Number(floor.area) || 0;
+              const rate = Number(floor.cost) || 0;
+              if (!(area > 0 && rate > 0)) return null;
+              return (
+                <div key={idx}>
+                  {floor.label.trim() || `Floor ${idx + 1}`}:{" "}
+                  <strong>₹{formatINR(area * rate)}</strong>
+                </div>
+              );
+            })}
           <div>
             Fee: <strong>₹{formatINR(totals.feeAmount)}</strong>
           </div>
@@ -443,15 +727,20 @@ export function EditInvoicePage() {
             </div>
           )}
           <div>
-            Billable total: <strong>₹{formatINR(totals.totalBill)}</strong>
+            {isQuote ? "Quoted" : "Billable"} total:{" "}
+            <strong>₹{formatINR(totals.totalBill)}</strong>
           </div>
-          <div>
-            Balance: <strong>₹{formatINR(totals.balance)}</strong>
-          </div>
-          <p className="meta" style={{ marginTop: "0.5rem" }}>
-            Installment schedule is not rebuilt automatically — adjust in Ledger
-            if dues change.
-          </p>
+          {!isQuote && (
+            <div>
+              Balance: <strong>₹{formatINR(totals.balance)}</strong>
+            </div>
+          )}
+          {!isQuote && (
+            <p className="meta" style={{ marginTop: "0.5rem" }}>
+              Installment schedule is not rebuilt automatically — adjust in
+              Ledger if dues change.
+            </p>
+          )}
         </div>
 
         <div className="row-actions" style={{ marginTop: "1.25rem" }}>
@@ -467,7 +756,7 @@ export function EditInvoicePage() {
             className="btn btn-primary"
             disabled={saving || Boolean(invoice.completed)}
           >
-            {saving ? "Saving…" : "Save invoice"}
+            {saving ? "Saving…" : isQuote ? "Save quotation" : "Save invoice"}
           </button>
         </div>
       </form>

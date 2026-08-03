@@ -798,7 +798,11 @@ export async function updateInvoice(
 
   const name = payload.name.trim();
   const location = payload.location.trim();
-  const advance = Number(payload.advanceAmount) || 0;
+  const isQuotation =
+    payload.documentType === "quotation" ||
+    current.documentType === "quotation";
+  const advance = isQuotation ? 0 : Number(payload.advanceAmount) || 0;
+  const balance = isQuotation ? 0 : totals.balance;
   const updated: Invoice = {
     ...current,
     name,
@@ -829,7 +833,9 @@ export async function updateInvoice(
     totalBill: totals.totalBill,
     advanceAmount: advance,
     advanceDate: advance > 0 ? payload.advanceDate || null : null,
-    balance: totals.balance,
+    balance,
+    paymentPlan: isQuotation ? "none" : current.paymentPlan,
+    documentType: isQuotation ? "quotation" : current.documentType || "invoice",
   };
 
   const syncClient = payload.syncClientInfo !== false;
