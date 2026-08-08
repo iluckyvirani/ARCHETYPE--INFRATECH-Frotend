@@ -331,7 +331,15 @@ function toListItems(invoices: Invoice[]): ClientListItem[] {
       completed: rows.every((r) => Boolean(r.completed)),
     });
   }
-  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return items.sort((a, b) => {
+    const byName = a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+    });
+    if (byName !== 0) return byName;
+    return a.location.localeCompare(b.location, undefined, {
+      sensitivity: "base",
+    });
+  });
 }
 
 function buildGroupResult(

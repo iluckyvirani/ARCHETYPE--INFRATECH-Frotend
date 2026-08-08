@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { BRAND } from "../lib/brand";
-import { formatDisplayDate, formatINR } from "../lib/calc";
+import { formatDisplayDate, formatINR, todayISO } from "../lib/calc";
 import { getClient } from "../lib/store";
 import type { Client, ScheduleItem } from "../lib/types";
 import { formatWorkTypes } from "../lib/workTypes";
@@ -211,18 +211,18 @@ export function InvoicePrintPage() {
 
   const isQuotation = client.documentType === "quotation";
 
-  const invoiceDay = client.createdAt.slice(0, 10);
   const advanceDay = client.advanceDate
     ? String(client.advanceDate).slice(0, 10)
     : null;
   const advanceAmt = isQuotation ? 0 : Number(client.advanceAmount) || 0;
+  // Past or today = already collected; future date = still due
   const advanceIsFuture =
-    advanceAmt > 0 && !!advanceDay && advanceDay > invoiceDay;
+    advanceAmt > 0 && !!advanceDay && advanceDay > todayISO();
   const advanceLabel =
     !isQuotation && advanceAmt > 0
       ? advanceIsFuture
         ? `Advance to be paid (${formatDisplayDate(advanceDay!)})`
-        : "Advance Received"
+        : "Advance received"
       : null;
 
   const paidInstallments = isQuotation
@@ -495,7 +495,14 @@ export function InvoicePrintPage() {
               <table className="inv-table inv-table--summary">
                 <tbody>
                   <tr>
-                    <td>Total fees</td>
+                    <td>
+                      Total fees
+                      {client.feeMode === "percentage" &&
+                      client.feePercent != null &&
+                      Number(client.feePercent) > 0
+                        ? ` (${Number(client.feePercent)}%)`
+                        : ""}
+                    </td>
                     <td className="inv-col-amt">
                       ₹{formatINR(client.feeAmount)}
                     </td>

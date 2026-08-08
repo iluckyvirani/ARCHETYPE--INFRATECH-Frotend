@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { PasswordInput } from "../components/PasswordInput";
 import { BRAND } from "../lib/brand";
 import {
   isAppUnlocked,
@@ -58,9 +59,8 @@ export function StartPage() {
           <form className="home-page__gate" onSubmit={onSubmit}>
             <p className="home-page__gate-title">Enter password</p>
             <p className="home-page__gate-hint">Minimum 6 characters</p>
-            <input
-              type="password"
-              className="home-page__input"
+            <PasswordInput
+              inputClassName="home-page__input"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -84,7 +84,10 @@ export function StartPage() {
               >
                 Back
               </button>
-              <button type="submit" className="home-page__cta home-page__cta--compact">
+              <button
+                type="submit"
+                className="home-page__cta home-page__cta--compact"
+              >
                 Access app
               </button>
             </div>

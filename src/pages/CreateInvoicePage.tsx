@@ -883,12 +883,13 @@ export function CreateInvoicePage() {
             <input
               type="date"
               value={advanceDate}
-              min={todayISO()}
               onChange={(e) => setAdvanceDate(e.target.value)}
               onPaste={(e) => e.preventDefault()}
               disabled={!(Number(advanceAmount) > 0)}
             />
-            <span className="meta">Pick today or a future date (calendar only)</span>
+            <span className="meta">
+              Past/today = already received · Future = due on bill
+            </span>
           </label>
         </div>
         <p>

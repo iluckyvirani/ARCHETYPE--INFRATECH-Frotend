@@ -1,4 +1,4 @@
-import { Bell, UserPlus, Users } from "lucide-react";
+import { Bell, User, UserPlus, Users } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { BRAND } from "../lib/brand";
 
@@ -6,6 +6,7 @@ const links = [
   { to: "/clients/new", label: "New", end: false, Icon: UserPlus },
   { to: "/clients", label: "Clients", end: true, Icon: Users },
   { to: "/notifications", label: "Alerts", end: false, Icon: Bell },
+  { to: "/profile", label: "Profile", end: false, Icon: User },
 ];
 
 function NavItems({ variant }: { variant: "side" | "bottom" }) {

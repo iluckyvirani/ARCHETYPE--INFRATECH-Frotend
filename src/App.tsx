@@ -8,6 +8,7 @@ import { EditInvoicePage } from "./pages/EditInvoicePage";
 import { InvoicePrintPage } from "./pages/InvoicePrintPage";
 import { NewClientPage } from "./pages/NewClientPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { StartPage } from "./pages/StartPage";
 import "./index.css";
 
@@ -34,6 +35,7 @@ export default function App() {
             />
             <Route path="clients/:id" element={<ClientDetailPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
