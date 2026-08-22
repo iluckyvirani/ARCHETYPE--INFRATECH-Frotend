@@ -8,10 +8,10 @@ type Props = {
   amount: number;
   dueDate?: string;
   onClose: () => void;
-  onConfirm: (paidAt: string) => Promise<void> | void;
+  onConfirm: (paidAt: string, paidAmount: number) => Promise<void> | void;
 };
 
-/** Collect payment — user enters the actual paid date. */
+/** Collect payment — user enters the actual paid date and amount collected. */
 export function CollectPaymentModal({
   open,
   clientName,
@@ -22,18 +22,23 @@ export function CollectPaymentModal({
   onConfirm,
 }: Props) {
   const [paidAt, setPaidAt] = useState(todayISO());
+  const [paidAmount, setPaidAmount] = useState(String(amount));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setPaidAt(todayISO());
+      setPaidAmount(String(amount));
       setError("");
       setSaving(false);
     }
-  }, [open]);
+  }, [open, amount]);
 
   if (!open) return null;
+
+  const enteredAmount = Number(paidAmount) || 0;
+  const diff = Math.round((amount - enteredAmount) * 100) / 100;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -41,10 +46,14 @@ export function CollectPaymentModal({
       setError("Select the actual paid date.");
       return;
     }
+    if (enteredAmount < 0) {
+      setError("Enter a valid amount.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      await onConfirm(paidAt);
+      await onConfirm(paidAt, enteredAmount);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -78,13 +87,29 @@ export function CollectPaymentModal({
           style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
         >
           <label className="field">
-            Amount (₹)
+            Due amount (₹)
+            <input type="text" readOnly value={formatINR(amount)} />
+          </label>
+
+          <label className="field">
+            Amount actually paid (₹)
             <input
-              type="text"
-              readOnly
-              value={formatINR(amount)}
+              type="number"
+              min={0}
+              step="0.01"
+              value={paidAmount}
+              onChange={(e) => setPaidAmount(e.target.value)}
+              required
             />
           </label>
+
+          {diff !== 0 && (
+            <p className="meta" style={{ margin: 0 }}>
+              {diff > 0
+                ? `Remaining ₹${formatINR(diff)} will be added to the next EMI.`
+                : `Extra ₹${formatINR(-diff)} will be adjusted against the next EMI.`}
+            </p>
+          )}
 
           <label className="field">
             Actual paid date

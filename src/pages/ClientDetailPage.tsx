@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { CollectPaymentModal } from "../components/CollectPaymentModal";
 import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
 import { DetailSkeleton } from "../components/Skeleton";
 import {
@@ -39,6 +40,7 @@ export function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [collectItem, setCollectItem] = useState<ScheduleItem | null>(null);
 
   async function refresh() {
     if (!groupId) return;
@@ -77,7 +79,7 @@ export function ClientDetailPage() {
 
     const otherPayments = schedule
       .filter((s) => s.paid && s.kind !== "advance")
-      .reduce((s, r) => s + r.amount, 0);
+      .reduce((s, r) => s + (r.paidAmount ?? r.amount), 0);
 
     // invoice.balance already = totalBill − advance at create time
     const openAfterAdvance = saleInvoices.reduce(
@@ -171,7 +173,17 @@ export function ClientDetailPage() {
 
   async function togglePaid(item: ScheduleItem) {
     if (!groupId) return;
-    await markSchedulePaid(groupId, item.id, !item.paid);
+    if (item.paid) {
+      await markSchedulePaid(groupId, item.id, false);
+      await refresh();
+      return;
+    }
+    setCollectItem(item);
+  }
+
+  async function onConfirmCollect(paidAt: string, paidAmount: number) {
+    if (!groupId || !collectItem) return;
+    await markSchedulePaid(groupId, collectItem.id, true, paidAt, paidAmount);
     await refresh();
   }
 
@@ -263,6 +275,16 @@ export function ClientDetailPage() {
           onConfirm={onConfirmComplete}
         />
       )}
+
+      <CollectPaymentModal
+        open={Boolean(collectItem)}
+        clientName={name}
+        label={collectItem?.label || ""}
+        amount={collectItem?.amount || 0}
+        dueDate={collectItem?.dueDate}
+        onClose={() => setCollectItem(null)}
+        onConfirm={onConfirmCollect}
+      />
 
       <div className="stat-row">
         <div className="stat-card">
@@ -516,7 +538,16 @@ export function ClientDetailPage() {
                         <td data-label="Due date">
                           {formatDisplayDate(row.dueDate)}
                         </td>
-                        <td data-label="Amount">₹{formatINR(row.amount)}</td>
+                        <td data-label="Amount">
+                          ₹{formatINR(row.amount)}
+                          {row.paid &&
+                            row.paidAmount != null &&
+                            row.paidAmount !== row.amount && (
+                              <div className="meta" style={{ margin: 0 }}>
+                                Collected ₹{formatINR(row.paidAmount)}
+                              </div>
+                            )}
+                        </td>
                         <td data-label="Status">
                           <span
                             className={`badge ${
@@ -807,7 +838,16 @@ function TxnTable({
                 <td data-label="Type">{row.kind}</td>
                 <td data-label="Invoice">#{inv?.invoiceNo || "—"}</td>
                 <td data-label="Description">{row.label}</td>
-                <td data-label="Amount">₹{formatINR(row.amount)}</td>
+                <td data-label="Amount">
+                  ₹{formatINR(row.amount)}
+                  {row.paid &&
+                    row.paidAmount != null &&
+                    row.paidAmount !== row.amount && (
+                      <div className="meta" style={{ margin: 0 }}>
+                        Collected ₹{formatINR(row.paidAmount)}
+                      </div>
+                    )}
+                </td>
                 <td data-label="Status">
                   <span
                     className={`badge ${

@@ -739,8 +739,8 @@ export function EditInvoicePage() {
           )}
           {!isQuote && (
             <p className="meta" style={{ marginTop: "0.5rem" }}>
-              Installment schedule is not rebuilt automatically — adjust in
-              Ledger if dues change.
+              Unpaid EMIs are automatically rebalanced to match this total —
+              already-collected payments are not affected.
             </p>
           )}
         </div>

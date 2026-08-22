@@ -33,6 +33,8 @@ export type ScheduleItem = {
   dueDate: string;
   paid: boolean;
   paidAt: string | null;
+  /** Actual amount collected against this row (may be less/more than `amount`) */
+  paidAmount?: number;
 };
 
 /** One invoice / quotation / sale */
@@ -75,6 +77,16 @@ export type Invoice = {
 
 /** @deprecated alias — invoice row */
 export type Client = Invoice;
+
+/** Business-wide ledger totals across all invoices (quotations excluded) */
+export type LedgerSummary = {
+  totalBilled: number;
+  totalReceived: number;
+  totalDue: number;
+  invoiceCount: number;
+  clientCount: number;
+  pendingCount: number;
+};
 
 export type ClientListItem = {
   groupId: string;

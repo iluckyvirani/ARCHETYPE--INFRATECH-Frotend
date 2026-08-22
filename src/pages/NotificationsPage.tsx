@@ -48,13 +48,14 @@ export function NotificationsPage() {
     [items, today]
   );
 
-  async function onCollect(paidAt: string) {
+  async function onCollect(paidAt: string, paidAmount: number) {
     if (!collect?.scheduleItemId) return;
     await markSchedulePaid(
       collect.invoiceId || collect.clientId,
       collect.scheduleItemId,
       true,
-      paidAt
+      paidAt,
+      paidAmount
     );
     await markNotificationRead(collect.id);
     setCollect(null);

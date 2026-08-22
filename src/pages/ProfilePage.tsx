@@ -1,5 +1,5 @@
 import { LogOut } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PasswordInput } from "../components/PasswordInput";
 import {
@@ -8,12 +8,25 @@ import {
   logoutApp,
   updateLoginName,
 } from "../lib/access";
+import { formatINR } from "../lib/calc";
+import { getLedgerSummary } from "../lib/store";
+import type { LedgerSummary } from "../lib/types";
+import "./ClientDetail.css";
 
 export function ProfilePage() {
   const navigate = useNavigate();
   const [name, setName] = useState(getLoginName);
   const [nameMsg, setNameMsg] = useState<string | null>(null);
   const [nameOk, setNameOk] = useState(false);
+
+  const [ledger, setLedger] = useState<LedgerSummary | null>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(true);
+
+  useEffect(() => {
+    getLedgerSummary()
+      .then(setLedger)
+      .finally(() => setLedgerLoading(false));
+  }, []);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -75,6 +88,41 @@ export function ProfilePage() {
           <p className="profile-name">{name.trim() || "User"}</p>
           <p className="profile-role">Logged in</p>
         </div>
+      </section>
+
+      <section className="panel">
+        <h2 className="profile-section-title">Business ledger</h2>
+        <p className="meta" style={{ marginBottom: "0.85rem" }}>
+          Across all invoices — quotations excluded
+        </p>
+        {ledgerLoading ? (
+          <p className="meta">Loading…</p>
+        ) : (
+          <>
+            <div className="stat-row">
+              <div className="stat-card">
+                <span className="stat-label">Total billed</span>
+                <strong>₹{formatINR(ledger?.totalBilled || 0)}</strong>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Total received</span>
+                <strong className="ok-text">
+                  ₹{formatINR(ledger?.totalReceived || 0)}
+                </strong>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Total due</span>
+                <strong className="error-text">
+                  ₹{formatINR(ledger?.totalDue || 0)}
+                </strong>
+              </div>
+            </div>
+            <p className="meta">
+              {ledger?.clientCount || 0} clients · {ledger?.invoiceCount || 0}{" "}
+              invoices · {ledger?.pendingCount || 0} EMIs pending
+            </p>
+          </>
+        )}
       </section>
 
       <section className="panel">

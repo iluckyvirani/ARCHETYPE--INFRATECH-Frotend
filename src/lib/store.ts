@@ -5,10 +5,11 @@ import type {
   ClientPayload,
   Invoice,
   InvoicePayload,
+  LedgerSummary,
   NotificationItem,
   ScheduleItem,
 } from "./types";
-import { buildSchedulePreview, calcTotals, todayISO } from "./calc";
+import { buildSchedulePreview, calcTotals, round2, todayISO } from "./calc";
 import { apiFetch } from "../api";
 
 const USE_API = true;
@@ -398,6 +399,40 @@ export async function listClients(): Promise<ClientListItem[]> {
   }
 
   return toListItems(loadLocal().invoices.map(normalizeInvoice));
+}
+
+/** Business-wide ledger: total billed, received and due across all invoices (quotations excluded) */
+export async function getLedgerSummary(): Promise<LedgerSummary> {
+  if (USE_API) {
+    try {
+      return await apiFetch<LedgerSummary>("/api/clients/ledger/summary");
+    } catch {
+      /* local fallback */
+    }
+  }
+
+  const data = loadLocal();
+  const invoices = data.invoices.filter((i) => i.documentType !== "quotation");
+  const invoiceIds = new Set(invoices.map((i) => i.id));
+  const totalBilled = round2(invoices.reduce((s, i) => s + i.totalBill, 0));
+  const totalReceived = round2(
+    data.schedule
+      .filter((s) => s.paid && (invoiceIds.has(s.invoiceId) || invoiceIds.has(s.clientId)))
+      .reduce((s, r) => s + (r.paidAmount ?? r.amount), 0)
+  );
+  const pendingCount = data.schedule.filter(
+    (s) => !s.paid && (invoiceIds.has(s.invoiceId) || invoiceIds.has(s.clientId))
+  ).length;
+  const clientCount = new Set(invoices.map((i) => i.groupId || i.id)).size;
+
+  return {
+    totalBilled,
+    totalReceived,
+    totalDue: round2(Math.max(0, totalBilled - totalReceived)),
+    invoiceCount: invoices.length,
+    clientCount,
+    pendingCount,
+  };
 }
 
 function dedupeInvoicesByNo(invoices: Invoice[]): Invoice[] {
@@ -978,14 +1013,15 @@ export async function markSchedulePaid(
   clientId: string,
   scheduleId: string,
   paid: boolean,
-  paidAt?: string | null
+  paidAt?: string | null,
+  paidAmount?: number
 ): Promise<void> {
   const paidAtValue = paid ? paidAt || todayISO() : null;
   if (USE_API) {
     try {
       await apiFetch(`/api/clients/${clientId}/schedule/${scheduleId}`, {
         method: "PATCH",
-        body: JSON.stringify({ paid, paidAt: paidAtValue }),
+        body: JSON.stringify({ paid, paidAt: paidAtValue, paidAmount }),
       });
       return;
     } catch {
@@ -995,7 +1031,7 @@ export async function markSchedulePaid(
   const data = loadLocal();
   data.schedule = data.schedule.map((s) =>
     s.id === scheduleId
-      ? { ...s, paid, paidAt: paidAtValue }
+      ? { ...s, paid, paidAt: paidAtValue, paidAmount: paid ? paidAmount ?? s.amount : 0 }
       : s
   );
   saveLocal(data);
