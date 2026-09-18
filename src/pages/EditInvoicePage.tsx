@@ -4,10 +4,15 @@ import { FormSkeleton } from "../components/Skeleton";
 import { WorkTypeSelect } from "../components/WorkTypeSelect";
 import {
   additionalWorksSum,
+  buildInstallmentDueDates,
+  buildSchedulePreview,
   calcTotals,
   floorsAreaSum,
   floorsProjectCost,
+  formatDisplayDate,
   formatINR,
+  getInstallmentCount,
+  stagesSum,
   todayISO,
 } from "../lib/calc";
 import { getClient, updateInvoice } from "../lib/store";
@@ -15,10 +20,20 @@ import type {
   AdditionalWork,
   AreaMode,
   FeeMode,
+  InstallmentMode,
   Invoice,
+  PaymentPlan,
+  ScheduleItem,
+  StageInput,
 } from "../lib/types";
 
 const emptyWork = (): AdditionalWork => ({ name: "", qty: 0, rate: 0 });
+
+const emptyStage = (): StageInput => ({
+  name: "",
+  amount: 0,
+  dueDate: todayISO(),
+});
 
 type FloorRow = { label: string; area: string; cost: string };
 
@@ -44,7 +59,7 @@ export function EditInvoicePage() {
   const [workTypes, setWorkTypes] = useState<string[]>([]);
   const [workTypeCustom, setWorkTypeCustom] = useState("");
   const [workTypeCustomEnabled, setWorkTypeCustomEnabled] = useState(false);
-  const [feeMode, setFeeMode] = useState<FeeMode>("area_sqft");
+  const [feeMode, setFeeMode] = useState<FeeMode>("percentage");
   const [areaMode, setAreaMode] = useState<AreaMode>("total");
   const [areaSqft, setAreaSqft] = useState("");
   const [floors, setFloors] = useState<FloorRow[]>([emptyFloor(1)]);
@@ -56,6 +71,16 @@ export function EditInvoicePage() {
   const [visitFee, setVisitFee] = useState("");
   const [advanceAmount, setAdvanceAmount] = useState("0");
   const [advanceDate, setAdvanceDate] = useState(todayISO());
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>("one_time");
+  const [installmentMode, setInstallmentMode] =
+    useState<InstallmentMode>("by_months");
+  const [installmentMonths, setInstallmentMonths] = useState("6");
+  const [installmentCount, setInstallmentCount] = useState("3");
+  const [installmentFirstDue, setInstallmentFirstDue] = useState(todayISO());
+  const [installmentDueDates, setInstallmentDueDates] = useState<string[]>([]);
+  const [oneTimeDueDate, setOneTimeDueDate] = useState(todayISO());
+  const [stages, setStages] = useState<StageInput[]>([emptyStage()]);
+  const [existingSchedule, setExistingSchedule] = useState<ScheduleItem[]>([]);
 
   useEffect(() => {
     if (!invoiceId) return;
@@ -66,7 +91,9 @@ export function EditInvoicePage() {
         return;
       }
       const inv = data.client;
+      const schedule = data.schedule || [];
       setInvoice(inv);
+      setExistingSchedule(schedule);
       setName(inv.name);
       setLocation(inv.location);
       setProjectName(inv.projectName);
@@ -98,6 +125,31 @@ export function EditInvoicePage() {
       );
       setAdvanceAmount(String(inv.advanceAmount || 0));
       setAdvanceDate(inv.advanceDate || todayISO());
+      setPaymentPlan(
+        inv.paymentPlan === "none" ? "one_time" : inv.paymentPlan
+      );
+      setInstallmentMode(inv.installmentMode || "by_months");
+      setInstallmentMonths(
+        inv.installmentMonths != null ? String(inv.installmentMonths) : "6"
+      );
+      setInstallmentCount(
+        inv.installmentCount != null ? String(inv.installmentCount) : "3"
+      );
+      const firstInstallment = schedule.find((s) => s.kind === "installment");
+      setInstallmentFirstDue(
+        firstInstallment?.dueDate || inv.oneTimeDueDate || todayISO()
+      );
+      setOneTimeDueDate(inv.oneTimeDueDate || todayISO());
+      const stageRows = schedule.filter((s) => s.kind === "stage" && !s.paid);
+      setStages(
+        stageRows.length > 0
+          ? stageRows.map((s) => ({
+              name: s.label || "",
+              amount: Number(s.amount) || 0,
+              dueDate: s.dueDate || todayISO(),
+            }))
+          : [emptyStage()]
+      );
       setLoading(false);
     });
   }, [invoiceId]);
@@ -139,6 +191,85 @@ export function EditInvoicePage() {
       additionalWorks,
       visitIncluded,
       visitFee,
+    ]
+  );
+
+  const alreadyCollected = useMemo(
+    () =>
+      existingSchedule
+        .filter((s) => s.kind !== "advance" && s.paid)
+        .reduce(
+          (sum, s) => sum + (Number(s.paidAmount) || Number(s.amount) || 0),
+          0
+        ),
+    [existingSchedule]
+  );
+
+  const unpaidBalance = Math.max(0, totals.balance - alreadyCollected);
+
+  const effectivePlan: PaymentPlan =
+    invoice?.documentType === "quotation" || unpaidBalance <= 0
+      ? "none"
+      : paymentPlan;
+
+  const emiCount = useMemo(
+    () =>
+      getInstallmentCount({
+        installmentMode,
+        installmentMonths: Number(installmentMonths) || 0,
+        installmentCount: Number(installmentCount) || 0,
+      }),
+    [installmentMode, installmentMonths, installmentCount]
+  );
+
+  useEffect(() => {
+    if (paymentPlan !== "installment") return;
+    setInstallmentDueDates(
+      buildInstallmentDueDates(
+        installmentFirstDue,
+        emiCount,
+        installmentMode,
+        Number(installmentMonths) || 0
+      )
+    );
+  }, [
+    paymentPlan,
+    emiCount,
+    installmentMode,
+    installmentMonths,
+    installmentFirstDue,
+  ]);
+
+  const preview = useMemo(
+    () =>
+      invoice?.documentType === "quotation"
+        ? []
+        : buildSchedulePreview({
+            clientId: invoiceId || "preview",
+            balance: unpaidBalance,
+            advanceAmount: Number(advanceAmount) || 0,
+            advanceDate: Number(advanceAmount) > 0 ? advanceDate : null,
+            paymentPlan: effectivePlan,
+            installmentMode,
+            installmentMonths: Number(installmentMonths) || 0,
+            installmentCount: Number(installmentCount) || 0,
+            installmentDueDates,
+            oneTimeDueDate,
+            stages,
+          }),
+    [
+      invoice?.documentType,
+      invoiceId,
+      unpaidBalance,
+      advanceAmount,
+      advanceDate,
+      effectivePlan,
+      installmentMode,
+      installmentMonths,
+      installmentCount,
+      installmentDueDates,
+      oneTimeDueDate,
+      stages,
     ]
   );
 
@@ -217,7 +348,49 @@ export function EditInvoicePage() {
         setError("Select advance date.");
         return;
       }
+      if (unpaidBalance > 0) {
+        if (paymentPlan === "one_time" && !oneTimeDueDate) {
+          setError("Select one-time due date.");
+          return;
+        }
+        if (paymentPlan === "installment") {
+          if (!(Number(installmentMonths) > 0)) {
+            setError("Enter number of months for installments.");
+            return;
+          }
+          if (
+            installmentMode === "count_over_months" &&
+            !(Number(installmentCount) > 0)
+          ) {
+            setError("Enter number of installments.");
+            return;
+          }
+          if (!installmentFirstDue) {
+            setError("Select first installment due date.");
+            return;
+          }
+        }
+        if (paymentPlan === "stage") {
+          const sum = stagesSum(stages);
+          if (Math.abs(sum - unpaidBalance) > 0.01) {
+            setError(
+              `Stage amounts (₹${formatINR(sum)}) must equal unpaid balance ₹${formatINR(unpaidBalance)}.`
+            );
+            return;
+          }
+          if (stages.some((s) => !s.name.trim() || !s.dueDate)) {
+            setError("Each stage needs a name and due date.");
+            return;
+          }
+        }
+      }
     }
+
+    const plan: PaymentPlan = isQuote
+      ? "none"
+      : unpaidBalance <= 0
+        ? "none"
+        : paymentPlan;
 
     setSaving(true);
     setError(null);
@@ -254,11 +427,16 @@ export function EditInvoicePage() {
         documentType: invoice.documentType || "invoice",
         advanceAmount: advance,
         advanceDate: advance > 0 ? advanceDate : null,
-        paymentPlan: isQuote ? "none" : invoice.paymentPlan,
-        installmentMode: isQuote ? null : invoice.installmentMode,
-        installmentMonths: isQuote ? null : invoice.installmentMonths,
-        installmentCount: isQuote ? null : invoice.installmentCount,
-        oneTimeDueDate: isQuote ? null : invoice.oneTimeDueDate,
+        paymentPlan: plan,
+        installmentMode: plan === "installment" ? installmentMode : null,
+        installmentMonths:
+          plan === "installment" ? Number(installmentMonths) || null : null,
+        installmentCount:
+          plan === "installment" ? Number(installmentCount) || null : null,
+        installmentDueDates:
+          plan === "installment" ? installmentDueDates : null,
+        oneTimeDueDate: plan === "one_time" ? oneTimeDueDate : null,
+        stages: plan === "stage" ? stages : undefined,
         syncClientInfo: clientInfoUnlocked,
       });
       navigate(`/clients/${groupId || invoice.groupId}`);
@@ -366,13 +544,15 @@ export function EditInvoicePage() {
           />
         </div>
 
-        <h2 style={{ margin: "1.25rem 0 0.75rem", color: "#0b1f14" }}>Fees</h2>
-        <div className="segmented" style={{ marginBottom: "0.75rem" }}>
+        <h2 style={{ margin: "1.25rem 0 0.75rem", color: "#0b1f14" }}>
+          Fee & amount
+        </h2>
+        <div className="segmented" role="tablist" aria-label="Fee mode" style={{ marginBottom: "0.75rem" }}>
           {(
             [
-              ["area_sqft", "Area / sqft"],
               ["percentage", "Percentage"],
-              ["fixed", "Fixed"],
+              ["fixed", "Fixed amount"],
+              ["area_sqft", "Area sqft"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -702,6 +882,235 @@ export function EditInvoicePage() {
                 </span>
               </label>
             </div>
+            <p style={{ marginTop: "0.75rem" }}>
+              Remaining balance:{" "}
+              <strong>₹{formatINR(totals.balance)}</strong>
+              {alreadyCollected > 0 && (
+                <span className="meta">
+                  {" "}
+                  · Already collected on schedule ₹{formatINR(alreadyCollected)}
+                  {" "}
+                  · Unpaid ₹{formatINR(unpaidBalance)}
+                </span>
+              )}
+            </p>
+
+            {unpaidBalance > 0 && (
+              <>
+                <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+                  Payment for remaining balance
+                </h2>
+                <div className="segmented">
+                  {(
+                    [
+                      ["one_time", "One time"],
+                      ["installment", "Installment"],
+                      ["stage", "Stage"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={paymentPlan === value ? "active" : ""}
+                      onClick={() => setPaymentPlan(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentPlan === "one_time" && (
+                  <div className="form-grid two" style={{ marginTop: "1rem" }}>
+                    <label className="field">
+                      Full balance due date
+                      <input
+                        type="date"
+                        value={oneTimeDueDate}
+                        min={todayISO()}
+                        onChange={(e) => setOneTimeDueDate(e.target.value)}
+                        onPaste={(e) => e.preventDefault()}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {paymentPlan === "installment" && (
+                  <div className="form-grid two" style={{ marginTop: "1rem" }}>
+                    <label className="field">
+                      Installment style
+                      <select
+                        value={installmentMode}
+                        onChange={(e) =>
+                          setInstallmentMode(e.target.value as InstallmentMode)
+                        }
+                      >
+                        <option value="by_months">
+                          Equal by months (monthly)
+                        </option>
+                        <option value="count_over_months">
+                          N installments over M months
+                        </option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      Number of months
+                      <input
+                        type="number"
+                        min="1"
+                        value={installmentMonths}
+                        onChange={(e) => setInstallmentMonths(e.target.value)}
+                      />
+                    </label>
+                    {installmentMode === "count_over_months" && (
+                      <label className="field">
+                        Number of installments
+                        <input
+                          type="number"
+                          min="1"
+                          value={installmentCount}
+                          onChange={(e) => setInstallmentCount(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <label className="field">
+                      First installment due date
+                      <input
+                        type="date"
+                        value={installmentFirstDue}
+                        min={todayISO()}
+                        onPaste={(e) => e.preventDefault()}
+                        onChange={(e) => setInstallmentFirstDue(e.target.value)}
+                      />
+                      <span className="meta">
+                        All {emiCount} EMIs are set from this date (monthly
+                        spaced)
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {paymentPlan === "stage" && (
+                  <div style={{ marginTop: "1rem" }}>
+                    {stages.map((stage, idx) => (
+                      <div
+                        key={idx}
+                        className="form-grid two"
+                        style={{
+                          marginBottom: "0.75rem",
+                          paddingBottom: "0.75rem",
+                          borderBottom: "1px solid rgba(11,31,20,0.08)",
+                        }}
+                      >
+                        <label className="field">
+                          Stage name
+                          <input
+                            value={stage.name}
+                            onChange={(e) => {
+                              const next = [...stages];
+                              next[idx] = { ...stage, name: e.target.value };
+                              setStages(next);
+                            }}
+                            placeholder="e.g. Slab / Plaster"
+                          />
+                        </label>
+                        <label className="field">
+                          Amount (₹)
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={stage.amount || ""}
+                            onChange={(e) => {
+                              const next = [...stages];
+                              next[idx] = {
+                                ...stage,
+                                amount: Number(e.target.value) || 0,
+                              };
+                              setStages(next);
+                            }}
+                          />
+                        </label>
+                        <label className="field">
+                          Due date
+                          <input
+                            type="date"
+                            value={stage.dueDate}
+                            min={todayISO()}
+                            onPaste={(e) => e.preventDefault()}
+                            onChange={(e) => {
+                              const next = [...stages];
+                              next[idx] = {
+                                ...stage,
+                                dueDate: e.target.value,
+                              };
+                              setStages(next);
+                            }}
+                          />
+                        </label>
+                        <div style={{ display: "flex", alignItems: "end" }}>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() =>
+                              setStages(stages.filter((_, i) => i !== idx))
+                            }
+                            disabled={stages.length === 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{ color: "#0b1f14", borderColor: "#0b1f14" }}
+                      onClick={() => setStages([...stages, emptyStage()])}
+                    >
+                      Add stage
+                    </button>
+                    <p className="meta" style={{ marginTop: "0.75rem" }}>
+                      Stages total ₹{formatINR(stagesSum(stages))} / unpaid ₹
+                      {formatINR(unpaidBalance)}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <h2 style={{ margin: "1.5rem 0 0.75rem", color: "#0b1f14" }}>
+              Schedule preview
+            </h2>
+            <div
+              className="table-wrap panel"
+              style={{ padding: 0, boxShadow: "none", background: "#fff" }}
+            >
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th>Amount</th>
+                    <th>Due date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.length === 0 && (
+                    <tr>
+                      <td colSpan={3}>No schedule rows</td>
+                    </tr>
+                  )}
+                  {preview.map((row, i) => (
+                    <tr key={i}>
+                      <td data-label="Label">{row.label}</td>
+                      <td data-label="Amount">₹{formatINR(row.amount)}</td>
+                      <td data-label="Due date">
+                        {formatDisplayDate(row.dueDate)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
 
@@ -739,7 +1148,7 @@ export function EditInvoicePage() {
           )}
           {!isQuote && (
             <p className="meta" style={{ marginTop: "0.5rem" }}>
-              Unpaid EMIs are automatically rebalanced to match this total —
+              Unpaid schedule rows are rebuilt from the payment plan below —
               already-collected payments are not affected.
             </p>
           )}

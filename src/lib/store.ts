@@ -846,6 +846,11 @@ export async function updateInvoice(
     current.documentType === "quotation";
   const advance = isQuotation ? 0 : Number(payload.advanceAmount) || 0;
   const balance = isQuotation ? 0 : totals.balance;
+  const plan = isQuotation
+    ? "none"
+    : balance <= 0
+      ? "none"
+      : payload.paymentPlan || current.paymentPlan || "none";
   const updated: Invoice = {
     ...current,
     name,
@@ -877,7 +882,13 @@ export async function updateInvoice(
     advanceAmount: advance,
     advanceDate: advance > 0 ? payload.advanceDate || null : null,
     balance,
-    paymentPlan: isQuotation ? "none" : current.paymentPlan,
+    paymentPlan: plan,
+    installmentMode: plan === "installment" ? payload.installmentMode ?? null : null,
+    installmentMonths:
+      plan === "installment" ? payload.installmentMonths ?? null : null,
+    installmentCount:
+      plan === "installment" ? payload.installmentCount ?? null : null,
+    oneTimeDueDate: plan === "one_time" ? payload.oneTimeDueDate ?? null : null,
     documentType: isQuotation ? "quotation" : current.documentType || "invoice",
   };
 
@@ -894,17 +905,101 @@ export async function updateInvoice(
     return inv;
   });
 
-  if (advance > 0) {
-    data.schedule = data.schedule.map((s) =>
-      s.invoiceId === invoiceId && s.kind === "advance"
-        ? {
-            ...s,
-            amount: advance,
-            dueDate: payload.advanceDate || s.dueDate,
-          }
-        : s
+  const belongs = (s: ScheduleItem) =>
+    s.invoiceId === invoiceId || s.clientId === invoiceId;
+
+  const alreadyCollected = data.schedule
+    .filter((s) => belongs(s) && s.kind !== "advance" && s.paid)
+    .reduce(
+      (sum, s) => sum + (Number(s.paidAmount) || Number(s.amount) || 0),
+      0
     );
+  const remaining = round2(Math.max(0, balance - alreadyCollected));
+
+  // Drop unpaid non-advance rows — they will be rebuilt from the payment plan
+  const removedIds = new Set(
+    data.schedule
+      .filter((s) => belongs(s) && s.kind !== "advance" && !s.paid)
+      .map((s) => s.id)
+  );
+  data.schedule = data.schedule.filter((s) => !removedIds.has(s.id));
+  data.notifications = data.notifications.filter(
+    (n) => !n.scheduleItemId || !removedIds.has(n.scheduleItemId)
+  );
+
+  if (advance > 0) {
+    const advanceRow = data.schedule.find(
+      (s) => belongs(s) && s.kind === "advance"
+    );
+    if (advanceRow) {
+      data.schedule = data.schedule.map((s) =>
+        s.id === advanceRow.id
+          ? {
+              ...s,
+              amount: advance,
+              dueDate: payload.advanceDate || s.dueDate,
+            }
+          : s
+      );
+    } else {
+      const schId = uid("sch");
+      const due = payload.advanceDate || todayISO();
+      const paid = due <= todayISO();
+      data.schedule.push({
+        id: schId,
+        clientId: invoiceId,
+        invoiceId,
+        kind: "advance",
+        label: "Advance",
+        amount: advance,
+        dueDate: due,
+        paid,
+        paidAt: paid ? due : null,
+      });
+    }
   }
+
+  if (!isQuotation && remaining > 0 && plan !== "none") {
+    const preview = buildSchedulePreview({
+      clientId: invoiceId,
+      balance: remaining,
+      advanceAmount: 0,
+      advanceDate: null,
+      paymentPlan: plan,
+      installmentMode: payload.installmentMode,
+      installmentMonths: payload.installmentMonths,
+      installmentCount: payload.installmentCount,
+      installmentDueDates: payload.installmentDueDates,
+      oneTimeDueDate: payload.oneTimeDueDate,
+      stages: payload.stages,
+    }).filter((r) => r.kind !== "advance");
+
+    for (const row of preview) {
+      const schId = uid("sch");
+      data.schedule.push({
+        id: schId,
+        clientId: invoiceId,
+        invoiceId,
+        kind: row.kind,
+        label: row.label,
+        amount: row.amount,
+        dueDate: row.dueDate,
+        paid: false,
+        paidAt: null,
+      });
+      data.notifications.push({
+        id: uid("ntf"),
+        clientId: invoiceId,
+        scheduleItemId: schId,
+        title: row.dueDate <= todayISO() ? "Payment due" : "Upcoming payment",
+        message: `${name} — ${row.label} ₹${row.amount.toLocaleString("en-IN")} due ${row.dueDate}`,
+        dueDate: row.dueDate,
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
   saveLocal(data);
 
   if (USE_API) {
